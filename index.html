@@ -109,11 +109,45 @@ fieldset{border:1px solid var(--border);border-radius:var(--radius-sm);margin:0 
 legend{font-size:var(--fs-sm);font-weight:600;padding:0 var(--sp-2)}
 .muted{color:var(--text-muted)}
 .mono{font-family:ui-monospace,Menlo,Consolas,monospace}
+.chip-btn{appearance:none;font:inherit;font-size:var(--fs-xs);font-weight:600;cursor:pointer}
+/* ===================== FEATURE: Wer-ist-dran-Karten ===================== */
+.dran-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:var(--sp-4);margin-bottom:var(--sp-5)}
+.dran-card{background:var(--surface);border:1px solid var(--border);border-top:3px solid var(--rk-red);border-radius:var(--radius);box-shadow:var(--shadow);padding:var(--sp-4)}
+.dran-card h3{margin-bottom:var(--sp-3)}
+.dran-cols{display:flex;gap:var(--sp-4);flex-wrap:wrap}
+.dran-col{flex:1;min-width:220px}
+.dran-col h4{margin:0 0 var(--sp-2) 0;font-size:var(--fs-sm);color:var(--text-muted);font-weight:600}
+ol.dran-list{margin:0;padding-left:1.4em;font-size:var(--fs-sm)}
+ol.dran-list li{margin-bottom:var(--sp-2)}
+ol.dran-list li:first-child>.dran-name{color:var(--rk-red-dark)}
+.dran-name{font-weight:600}
+.dran-meta{color:var(--text-muted);font-size:var(--fs-xs)}
+.dran-toggle{margin-top:var(--sp-1)}
+/* ===================== FEATURE: Bericht (Druck/PDF) ===================== */
+#reportView{display:none}
+@media print{
+  body.print-report{background:#fff;min-width:0}
+  body.print-report .app-header,body.print-report .app-nav,body.print-report .app-main{display:none!important}
+  body.print-report #reportView{display:block}
+}
+#reportView{font-family:var(--font);color:#000;padding:0}
+#reportView h1{font-size:16pt;margin:0}
+#reportView .report-sub{color:#444;font-size:9pt;margin:2pt 0 10pt}
+#reportView h2{font-size:12pt;margin:12pt 0 4pt}
+#reportView .report-stats{display:flex;gap:16pt;flex-wrap:wrap;font-size:9pt;margin:4pt 0 6pt}
+#reportView .report-stats b{font-size:11pt}
+#reportView table{border-collapse:collapse;width:100%;font-size:8pt;page-break-inside:auto}
+#reportView th,#reportView td{border:1px solid #999;padding:2pt 4pt;text-align:left;vertical-align:top}
+#reportView th{background:#eee}
+#reportView td.num,#reportView th.num{text-align:right;font-variant-numeric:tabular-nums}
+#reportView .report-dran{display:flex;gap:16pt;flex-wrap:wrap;font-size:9pt}
+#reportView .report-dran div{min-width:160px}
 </style>
 </head>
 <body>
 <header class="app-header">
   <div class="wordmark">Zug 11 <span class="wordmark-accent">Statistik</span></div>
+  <button class="btn btn-sm" id="btnReport" title="Aufgeräumte Druckansicht des aktuellen Stands (über den Browser-Druck auch als PDF speicherbar)">Bericht</button>
   <div class="file-status" id="fileStatus">
     <span class="status-dot"></span>
     <span id="fileStatusText">Keine Datei verbunden</span>
@@ -132,15 +166,16 @@ legend{font-size:var(--fs-sm);font-weight:600;padding:0 var(--sp-2)}
 
 <!-- ================= Dashboard ================= -->
 <section class="view is-active" id="view-dashboard">
+  <!-- FEATURE: Wer-ist-dran-Karten (ersetzt die frühere DF-Balance-Karte) -->
+  <div class="dran-grid" id="dranCards"></div>
   <div class="stat-grid" id="dashSummary"></div>
   <div class="card">
     <div class="card-title"><h2>Personen-Übersicht</h2></div>
     <div class="toolbar">
-      <label>Qualifikation
-        <select id="dashFilterQual"><option value="">alle</option></select>
-      </label>
-      <label>Berechtigung
-        <select id="dashFilterElig"><option value="">alle</option></select>
+      <label>Eignung
+        <select id="dashFilterRolle"><option value="">– Rolle –</option><option value="fahrer">Fahrer</option><option value="tf">Transportführer</option></select>
+        ×
+        <select id="dashFilterKat"><option value="">– Kategorie –</option></select>
       </label>
       <label><input type="checkbox" id="dashShowInactive"> Ausgetretene anzeigen</label>
     </div>
@@ -151,10 +186,10 @@ legend{font-size:var(--fs-sm);font-weight:600;padding:0 var(--sp-2)}
       <span><span class="swatch" style="background:var(--surface)"></span>%-Werte = Anteil an Diensten (Summe kann über 100 % liegen)</span>
     </div>
   </div>
-  <div class="card">
-    <div class="card-title"><h3>DF-Balance</h3></div>
-    <p class="hint">Nur Personen mit DF-Berechtigung (df-Häkchen).</p>
-    <div class="table-wrap"><table class="data" id="dfTable"><thead></thead><tbody></tbody></table></div>
+  <!-- FEATURE: Gast-Quote -->
+  <div class="card" id="gastCard" hidden>
+    <div class="card-title"><h3>Gäste</h3></div>
+    <div id="gastCardBody"></div>
   </div>
 </section>
 
@@ -233,35 +268,137 @@ legend{font-size:var(--fs-sm);font-weight:600;padding:0 var(--sp-2)}
 </section>
 
 </main>
+<!-- FEATURE: Bericht — wird vor dem Drucken befüllt, nur im Druck sichtbar -->
+<div id="reportView"></div>
 <dialog id="appDialog"></dialog>
 <script src="vendor/xlsx.full.min.js"></script>
 <script>
 /* ===== CORE-START ===== (reine Logik, ohne DOM — wird von den Tests direkt geladen) */
 'use strict';
 
+/* ---------- Schema v2: Fahrlizenz & Stufe statt einem Qualifikations-Feld ---------- */
+const FAHRLIZENZ_LIST = ['keine', 'A', 'B2', 'B3'];
+const STUFE_LIST = ['Praktikant', 'RS1', 'RS2', 'NFS'];
+const ROLLE_KEYS = ['fahrer', 'tf', 'p2']; // Spaltenreihenfolge im Dienstplan
+
+/* alte v1-Qualifikationscodes (nur noch für Migration und Excel-Import) */
 const QUAL_LIST = ['A', 'Prkt', 'B2', 'B3', 'B3-NFS', 'TF-R1', 'TF-R2'];
-const QUAL_INFO = {
-  'A':      'KTW/ZBV/ÄBD ohne Blaulicht, kein RTW',
-  'Prkt':   'nur 2. Trspf./Praktikant, nur KTW',
-  'B2':     'KTW/ZBV/ÄBD mit Blaulicht, kein RTW',
-  'B3':     'wie B2, zusätzlich RTW',
-  'B3-NFS': 'wie B3, zusätzlich NFS',
-  'TF-R1':  'keine Fahrlizenz, TF/2. Trspf., nur KTW',
-  'TF-R2':  'wie TF-R1, zusätzlich RTW'
+/* Migrations-Mapping alt → {fahrlizenz, stufe}; stufe null = „nachpflegen“ */
+const QUAL_MIGRATION = {
+  'Prkt':   { fahrlizenz: 'keine', stufe: 'Praktikant' },
+  'TF-R1':  { fahrlizenz: 'keine', stufe: 'RS1' },
+  'TF-R2':  { fahrlizenz: 'keine', stufe: 'RS2' },
+  'B3-NFS': { fahrlizenz: 'B3',    stufe: 'NFS' },
+  'A':      { fahrlizenz: 'A',     stufe: null },
+  'B2':     { fahrlizenz: 'B2',    stufe: null },
+  'B3':     { fahrlizenz: 'B3',    stufe: null }
+};
+/* Eignungs-Defaults je bekannter Kategorie nach der Migration */
+const CAT_ELIG_DEFAULTS = {
+  RTW: { eligibleFahrer: ['B3'],             eligibleTf: ['RS2', 'NFS'] },
+  KTW: { eligibleFahrer: ['A', 'B2', 'B3'],  eligibleTf: ['RS1', 'RS2', 'NFS'] },
+  ABD: { eligibleFahrer: ['A', 'B2', 'B3'],  eligibleTf: [] },
+  ZBV: { eligibleFahrer: ['A', 'B2', 'B3'],  eligibleTf: [] }
 };
 
 function defaultCategories() {
   return [
-    { id: 'RTW', label: 'RTW', matchPrefixes: ['R'], matchCodes: [],             fairness: true,  eligibleQuals: ['B3', 'B3-NFS', 'TF-R2'] },
-    { id: 'KTW', label: 'KTW', matchPrefixes: ['K'], matchCodes: [],             fairness: false, eligibleQuals: ['A', 'Prkt', 'B2', 'B3', 'B3-NFS', 'TF-R1', 'TF-R2'] },
-    { id: 'ABD', label: 'ÄBD', matchPrefixes: [],    matchCodes: ['ÄBD', 'ÄND'], fairness: true,  eligibleQuals: ['A', 'B2', 'B3', 'B3-NFS'] },
-    { id: 'ZBV', label: 'ZBV', matchPrefixes: [],    matchCodes: ['ZBV'],        fairness: false, eligibleQuals: ['A', 'B2', 'B3', 'B3-NFS'] },
+    { id: 'RTW', label: 'RTW', matchPrefixes: ['R'], matchCodes: [],             fairness: true,  eligibleFahrer: ['B3'],            eligibleTf: ['RS2', 'NFS'] },
+    { id: 'KTW', label: 'KTW', matchPrefixes: ['K'], matchCodes: [],             fairness: false, eligibleFahrer: ['A', 'B2', 'B3'], eligibleTf: ['RS1', 'RS2', 'NFS'] },
+    { id: 'ABD', label: 'ÄBD', matchPrefixes: [],    matchCodes: ['ÄBD', 'ÄND'], fairness: true,  eligibleFahrer: ['A', 'B2', 'B3'], eligibleTf: [] },
+    { id: 'ZBV', label: 'ZBV', matchPrefixes: [],    matchCodes: ['ZBV'],        fairness: false, eligibleFahrer: ['A', 'B2', 'B3'], eligibleTf: [] },
     { id: 'DF',  label: 'DF',  matchPrefixes: [],    matchCodes: ['DF'],         fairness: true,  eligibleFlag: 'df' }
   ];
 }
 
 function defaultData() {
-  return { version: 1, categories: defaultCategories(), people: [], evenings: [] };
+  return { version: 2, categories: defaultCategories(), gastListe: [], people: [], evenings: [] };
+}
+
+/* ---------- Migration v1 → v2 (verlustfrei & tolerant) ----------
+   Unbekannte Felder bleiben unangetastet; fehlende Felder bekommen Defaults.
+   Liefert true, wenn etwas migriert wurde (→ Hinweis im UI, Persistieren beim
+   nächsten Speichern). Eine v2-Datei läuft unverändert durch. */
+function migratePersonV2(p) {
+  let changed = false;
+  if (p.fahrlizenz === undefined && p.stufe === undefined) {
+    const alt = normQual(p.qualifikation || '');
+    const m = QUAL_MIGRATION[alt];
+    p.fahrlizenz = m ? m.fahrlizenz : 'keine';
+    p.stufe = m ? m.stufe : null;
+    if (alt) p.qualifikationAlt = alt;   // alten Wert mitführen, bis die Stufe gepflegt ist
+    delete p.qualifikation;
+    changed = true;
+  }
+  if (p.fahrlizenz === undefined) { p.fahrlizenz = 'keine'; changed = true; }
+  if (p.stufe === undefined) { p.stufe = null; changed = true; }
+  /* Regel: Praktikant hat nie eine Fahrlizenz */
+  if (p.stufe === 'Praktikant' && p.fahrlizenz !== 'keine') { p.fahrlizenz = 'keine'; changed = true; }
+  if (!Array.isArray(p.aliases)) p.aliases = [];
+  return changed;
+}
+
+function migrateCategoryV2(c) {
+  if (c.eligibleFlag) return false;
+  if (c.eligibleFahrer !== undefined || c.eligibleTf !== undefined) {
+    if (!Array.isArray(c.eligibleFahrer)) c.eligibleFahrer = [];
+    if (!Array.isArray(c.eligibleTf)) c.eligibleTf = [];
+    return false;
+  }
+  const d = CAT_ELIG_DEFAULTS[c.id];
+  if (d) {
+    c.eligibleFahrer = [...d.eligibleFahrer];
+    c.eligibleTf = [...d.eligibleTf];
+  } else {
+    /* selbst angelegte v1-Kategorie: Eignung aus den alten Quali-Codes ableiten */
+    c.eligibleFahrer = []; c.eligibleTf = [];
+    for (const q of (c.eligibleQuals || [])) {
+      const m = QUAL_MIGRATION[normQual(q)];
+      if (!m) continue;
+      if (m.fahrlizenz !== 'keine' && !c.eligibleFahrer.includes(m.fahrlizenz)) c.eligibleFahrer.push(m.fahrlizenz);
+      if (m.stufe && m.stufe !== 'Praktikant' && !c.eligibleTf.includes(m.stufe)) c.eligibleTf.push(m.stufe);
+    }
+  }
+  if (c.eligibleQuals !== undefined) { c.eligibleQualsAlt = c.eligibleQuals; delete c.eligibleQuals; }
+  return true;
+}
+
+function migrateEveningV2(ev) {
+  let changed = false;
+  const a = ev.assignments || (ev.assignments = {});
+  for (const pid of Object.keys(a)) {
+    a[pid] = (a[pid] || []).map(e => {
+      if (typeof e === 'string') { changed = true; return { kat: e, rolle: null }; } // historische Abende: keine Rollen-Info
+      return e;
+    });
+  }
+  return changed;
+}
+
+function migrateData(raw) {
+  let migrated = (raw.version || 1) < 2;
+  raw.version = 2;
+  if (!Array.isArray(raw.gastListe)) raw.gastListe = [];
+  for (const p of (raw.people || [])) migrated = migratePersonV2(p) || migrated;
+  for (const c of (raw.categories || [])) migrated = migrateCategoryV2(c) || migrated;
+  for (const ev of (raw.evenings || [])) migrated = migrateEveningV2(ev) || migrated;
+  return migrated;
+}
+
+/* Kategorien-IDs eines Eintrags (v2: Liste von {kat, rolle}) */
+function assignmentCats(ev, pid) {
+  return ((ev.assignments && ev.assignments[pid]) || []).map(e => e.kat);
+}
+
+/* ---------- Eignung aus Fahrlizenz und Stufe ---------- */
+function darfFahren(person, cat) {
+  if (cat.eligibleFlag) return !!person[cat.eligibleFlag];
+  return Array.isArray(cat.eligibleFahrer) && cat.eligibleFahrer.includes(person.fahrlizenz);
+}
+function darfTf(person, cat) {
+  if (cat.eligibleFlag) return false;
+  /* stufe null = „nachpflegen“ → gilt als nicht TF-geeignet */
+  return person.stufe != null && Array.isArray(cat.eligibleTf) && cat.eligibleTf.includes(person.stufe);
 }
 
 /* ---------- Normalisierung & Namen ---------- */
@@ -315,6 +452,86 @@ function matchPersonName(rawName, people) {
     return { status: 'ambiguous', person: null, candidates: hits };
   }
   return { status: 'none', person: null, candidates: [] };
+}
+
+/* ---------- Gast-Automatik mit Tippfehler-Schutz ---------- */
+function editDistance(a, b) {
+  a = String(a); b = String(b);
+  const m = a.length, n = b.length;
+  if (Math.abs(m - n) > 4) return Math.abs(m - n); // reicht für den Schwellwert-Vergleich
+  let prev = Array.from({ length: n + 1 }, (_, j) => j);
+  for (let i = 1; i <= m; i++) {
+    const cur = [i];
+    for (let j = 1; j <= n; j++) {
+      cur[j] = Math.min(prev[j] + 1, cur[j - 1] + 1, prev[j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1));
+    }
+    prev = cur;
+  }
+  return prev[n];
+}
+
+/* Ähnelt der Name verdächtig einem aktiven Mitglied? (kleine Edit-Distanz wie
+   Christina/Christine — auch bei vertauschter Reihenfolge, da personNameKeys beide
+   Reihenfolgen enthält — oder gleicher Nachname bei ähnlichem/abgekürztem Vornamen) */
+function findSimilarMember(rawName, people) {
+  const key = normKey(rawName);
+  if (!key) return null;
+  const parts = key.split(' ');
+  for (const p of people) {
+    if (p.status === 'ausgetreten') continue;
+    for (const k of personNameKeys(p)) {
+      const d = editDistance(key, k);
+      if (d > 0 && d <= 2 && Math.min(key.length, k.length) >= 6) return p;
+    }
+    const nn = normKey(p.nachname), vn = normKey(p.vorname);
+    if (nn && vn && parts.includes(nn)) {
+      const rest = parts.filter(x => x !== nn).join(' ');
+      if (rest && (editDistance(rest, vn) <= 2 || vn.startsWith(rest) || rest.startsWith(vn))) return p;
+    }
+  }
+  return null;
+}
+
+/* Name aus dem Plan auflösen. Ergebnis-Status:
+   'match'    eindeutig ein Mitglied
+   'gast'     bestätigter Gast aus der gastListe (still übernehmen)
+   'gast-neu' nicht zuordenbar → automatisch als Gast vorgeschlagen
+   'unklar'   mehrdeutig oder verdächtig ähnlich zu einem Mitglied (suggestion) */
+function resolvePlanName(rawName, people, gastListe) {
+  const m = matchPersonName(rawName, people);
+  if (m.status === 'match') return { status: 'match', person: m.person, candidates: m.candidates };
+  if (m.status === 'ambiguous') return { status: 'unklar', person: null, candidates: m.candidates, suggestion: null };
+  /* gastListe wie das Mitglieder-Matching reihenfolgetolerant (Vorname Nachname ↔ Nachname Vorname) */
+  const rawKeys = new Set([normKey(rawName)]);
+  const rk = normKey(rawName), ri = rk.lastIndexOf(' ');
+  if (ri > 0) rawKeys.add(rk.slice(ri + 1) + ' ' + rk.slice(0, ri));
+  if ((gastListe || []).some(g => rawKeys.has(normKey(g)))) return { status: 'gast', person: null, candidates: [] };
+  const similar = findSimilarMember(rawName, people);
+  if (similar) return { status: 'unklar', person: null, candidates: [similar], suggestion: similar };
+  return { status: 'gast-neu', person: null, candidates: [] };
+}
+
+/* ===== FEATURE: Gast-Quote ===== */
+/* Gast-Einsatz = ein Name in gaeste eines Abends (zählt nicht in die Statistik,
+   nur für die Quote). Crew-Plätze = Mitglieder-Dienste + Gast-Einsätze. */
+function computeGastStats(data) {
+  const byKey = new Map();
+  let einsaetze = 0, memberSlots = 0;
+  for (const ev of (data.evenings || [])) {
+    for (const g of (ev.gaeste || [])) {
+      einsaetze++;
+      const k = normKey(g);
+      const e = byKey.get(k) || { name: normSpace(g), count: 0 };
+      e.count++;
+      byKey.set(k, e);
+    }
+    for (const pid of Object.keys(ev.assignments || {})) {
+      if (assignmentCats(ev, pid).length) memberSlots++;
+    }
+  }
+  const top = [...byKey.values()].sort((a, b) => b.count - a.count || a.name.localeCompare(b.name, 'de')).slice(0, 5);
+  const slots = einsaetze + memberSlots;
+  return { einsaetze, verschiedene: byKey.size, anteil: slots > 0 ? einsaetze / slots : null, top };
 }
 
 /* ---------- Tour-Code → Kategorie(n) ---------- */
@@ -413,7 +630,9 @@ function parsePlan(text, categories) {
     const crew = [];
     for (let i = 0; i < 3; i++) {
       const name = cleanCellName(cc[i]);
-      if (name) crew.push({ role: CREW_COLS[i], name });
+      /* rolle aus der Spaltenposition (fahrer/tf/p2) — Zusatzinfo, ändert nichts am Zählen.
+         Auch auf ÄBD/ZBV-Zeilen wird wie gelesen gespeichert (keine Validierung). */
+      if (name) crew.push({ role: CREW_COLS[i], rolle: ROLLE_KEYS[i], name });
     }
     tours.push({ code: normSpace(b.code), catIds: res.catIds, unknownParts: res.unknownParts, crew });
   }
@@ -432,11 +651,12 @@ function personAppearsAt(ev, pid) {
   return hasCat || hasPartial;
 }
 
-/* Statistik je Person: dienste, catCounts, catPct, expected, presenceSum, presencePct */
+/* Statistik je Person: dienste, catCounts, catPct, expected, presenceSum, presencePct,
+   lastCat (letztes Datum je Kategorie). result.dates = sortierte Abend-Daten. */
 function computeStats(data) {
   const evenings = sortedEvenings(data);
   const catIds = (data.categories || []).map(c => c.id);
-  const result = { evenings: evenings.length, perPerson: {}, catTotals: {} };
+  const result = { evenings: evenings.length, dates: evenings.map(e => e.date), perPerson: {}, catTotals: {} };
   for (const cid of catIds) result.catTotals[cid] = 0;
 
   // erstes Auftreten je Person
@@ -450,19 +670,20 @@ function computeStats(data) {
   for (const p of data.people) {
     const s = {
       dienste: 0, expected: 0, presenceSum: 0, presencePct: null,
-      catCounts: {}, catPct: {}, firstSeen: firstSeen[p.id] || null
+      catCounts: {}, catPct: {}, lastCat: {}, firstSeen: firstSeen[p.id] || null
     };
     for (const cid of catIds) s.catCounts[cid] = 0;
     const start = p.eintritt || firstSeen[p.id] || null;
     const end = p.austritt || null;
 
     for (const ev of evenings) {
-      const a = (ev.assignments && ev.assignments[p.id]) || [];
+      const a = assignmentCats(ev, p.id);
       const hasCat = a.length > 0;
       if (hasCat) {
         s.dienste++;
         for (const cid of a) {
           if (s.catCounts[cid] !== undefined) s.catCounts[cid]++;
+          s.lastCat[cid] = ev.date; // Abende sind aufsteigend sortiert
         }
       }
       const expected = start !== null && ev.date >= start && (end === null || ev.date <= end);
@@ -481,7 +702,7 @@ function computeStats(data) {
 
   for (const ev of evenings) {
     for (const pid of Object.keys(ev.assignments || {})) {
-      for (const cid of ev.assignments[pid]) {
+      for (const cid of assignmentCats(ev, pid)) {
         if (result.catTotals[cid] !== undefined) result.catTotals[cid]++;
       }
     }
@@ -489,21 +710,70 @@ function computeStats(data) {
   return result;
 }
 
-/* Berechtigung: eligibleFlag (z. B. df) oder eligibleQuals */
+/* ===== FEATURE: Zuletzt-Spalten — „vor N Abenden“ ===== */
+/* N = Anzahl erfasster Abende seit dem Datum; null = nie */
+function eveningsSince(stats, date) {
+  if (!date) return null;
+  let n = 0;
+  for (const d of stats.dates) if (d > date) n++;
+  return n;
+}
+function fmtVorN(n) {
+  if (n === null || n === undefined) return 'nie';
+  if (n === 0) return 'beim letzten Abend';
+  return n === 1 ? 'vor 1 Abend' : 'vor ' + n + ' Abenden';
+}
+
+/* Berechtigung: eligibleFlag (z. B. df) oder als Fahrer/TF geeignet */
 function isEligible(person, cat) {
   if (cat.eligibleFlag) return !!person[cat.eligibleFlag];
-  if (Array.isArray(cat.eligibleQuals)) return cat.eligibleQuals.includes(person.qualifikation);
-  return true;
+  return darfFahren(person, cat) || darfTf(person, cat);
+}
+
+/* ===== FEATURE: Wer-ist-dran-Karten — Ranking ===== */
+/* Deterministisches Ranking der Kandidaten einer Fairness-Kategorie:
+   1) niedrigster Kategorie-Anteil (Anzahl ÷ eigene Dienste; 0 Dienste ⇒ Anteil 0)
+   2) Tiebreak: am längsten her (letzter Dienst in der Kategorie; „nie“ vor allen Daten)
+   3) Tiebreak: weniger Dienste gesamt
+   4) Name (nur für stabile Reihenfolge)
+   Der Anteil rechnet bewusst über die gesamte Historie rollenunabhängig — Altdaten
+   (v1) haben keine Rollen. Die ab v2 mitgeschriebenen Rollen erlauben später eine
+   Verfeinerung (z. B. RTW-Fahrer-Anteil getrennt vom RTW-TF-Anteil). */
+function rankDran(candidates, stats, catId) {
+  function cmpLast(a, b) { // null = nie = am längsten her → zuerst
+    if (a === b) return 0;
+    if (a === null) return -1;
+    if (b === null) return 1;
+    return a < b ? -1 : 1;
+  }
+  return candidates.map(p => {
+    const s = stats.perPerson[p.id];
+    const count = s.catCounts[catId] || 0;
+    return {
+      p, count,
+      anteil: s.dienste > 0 ? count / s.dienste : 0,
+      last: s.lastCat[catId] || null,
+      lastN: eveningsSince(stats, s.lastCat[catId] || null),
+      dienste: s.dienste,
+      wenigDaten: s.dienste < 5
+    };
+  }).sort((a, b) =>
+    (a.anteil - b.anteil) ||
+    cmpLast(a.last, b.last) ||
+    (a.dienste - b.dienste) ||
+    (a.p.nachname + ' ' + a.p.vorname).localeCompare(b.p.nachname + ' ' + b.p.vorname, 'de'));
 }
 
 /* Fairness: je Fairness-Kategorie die berechtigten aktiven Personen mit dem niedrigsten
    (Stufe 'low') bzw. zweitniedrigsten ('next') Anteil markieren.
-   Personen ohne Dienste zählen mit Anteil 0 (sie sind am ehesten „dran“). */
-function fairnessMarks(data, stats) {
+   Personen ohne Dienste zählen mit Anteil 0 (sie sind am ehesten „dran“).
+   Optional auf eine Teilmenge (gefilterte Ansicht) eingeschränkt. */
+function fairnessMarks(data, stats, peopleSubset) {
   const marks = {}; // pid -> { catId: 'low'|'next' }
+  const pool = peopleSubset || data.people;
   for (const cat of data.categories) {
     if (!cat.fairness) continue;
-    const eligible = data.people.filter(p => p.status !== 'ausgetreten' && isEligible(p, cat));
+    const eligible = pool.filter(p => p.status !== 'ausgetreten' && isEligible(p, cat));
     if (eligible.length < 2) continue;
     const vals = eligible.map(p => {
       const s = stats.perPerson[p.id];
@@ -543,7 +813,8 @@ function parseNumCell(v) {
 }
 
 /* sheets = { stammdaten, anwesenheit, ktw } — jeweils Array-of-Arrays (Zeile 0 = Kopf).
-   Liefert { data, dfCandidates, warnings }. */
+   Liefert { data, dfCandidates, warnings } — data im v2-Schema (die alten
+   Quali-Codes laufen durch dieselbe Migration wie eine v1-Datei). */
 function importFromExcelSheets(sheets, categories) {
   const cats = categories || defaultCategories();
   const warnings = [];
@@ -653,6 +924,9 @@ function importFromExcelSheets(sheets, categories) {
     if (Object.keys(ev.partials).length === 0) delete ev.partials;
   }
 
+  /* alte Quali-Codes & String-Zuordnungen → v2 (fahrlizenz/stufe, {kat,rolle}) */
+  migrateData(data);
+
   /* --- DF-Kandidaten: Personen mit DF-Diensten im Altbestand --- */
   const stats = computeStats(data);
   const dfCandidates = data.people
@@ -673,11 +947,19 @@ function upsertEvening(data, evening, mode) {
   const old = data.evenings[idx];
   for (const pid of Object.keys(evening.assignments || {})) {
     const list = old.assignments[pid] || (old.assignments[pid] = []);
-    for (const cid of evening.assignments[pid]) if (!list.includes(cid)) list.push(cid);
+    for (const e of evening.assignments[pid]) {
+      if (!list.some(x => x.kat === e.kat)) list.push(e);
+    }
   }
   if (evening.partials) {
     old.partials = old.partials || {};
     Object.assign(old.partials, evening.partials);
+  }
+  if (evening.gaeste && evening.gaeste.length) {
+    old.gaeste = old.gaeste || [];
+    for (const g of evening.gaeste) {
+      if (!old.gaeste.some(x => normKey(x) === normKey(g))) old.gaeste.push(g);
+    }
   }
   return 'zusammengeführt';
 }
@@ -713,8 +995,49 @@ let lastModified = null;      // lastModified der Datei beim letzten Lesen/Schre
 let manualDirty = false;
 let saveTimer = null;
 let lastSavedAt = null;
+let fsaBlocked = false;       // API vorhanden, aber Zugriff verweigert/blockiert (z. B. Richtlinie)
 
 const FSA_SUPPORTED = typeof window.showOpenFilePicker === 'function' && window.isSecureContext;
+function fsaUsable() { return FSA_SUPPORTED && !fsaBlocked; }
+
+/* Grund, warum nur der manuelle Modus geht (null = direkter Zugriff verfügbar) */
+function manualModeReason() {
+  if (!FSA_SUPPORTED) {
+    if (location.protocol === 'file:') return {
+      kurz: 'per file:// geöffnet',
+      lang: 'Direkt-Speichern ist nur über die Web-Adresse möglich — bitte die GitHub-Pages-URL verwenden. ' +
+            'Hier gilt der manuelle Modus: „Datei laden“ und nach Änderungen „Datei speichern“ (Download in den OneDrive-Ordner legen und ersetzen).'
+    };
+    return {
+      kurz: 'Browser ohne Direkt-Speichern',
+      lang: 'Dieser Browser unterstützt kein direktes Speichern (File System Access API) — bitte Microsoft Edge oder Chrome verwenden. ' +
+            'Bis dahin gilt der manuelle Modus: „Datei laden“ und nach Änderungen „Datei speichern“ (Download).'
+    };
+  }
+  if (fsaBlocked) return {
+    kurz: 'Dateizugriff blockiert',
+    lang: 'Der Browser könnte direkt speichern, der Zugriff wurde aber verweigert oder blockiert (z. B. durch eine Richtlinie). ' +
+          'Es gilt der manuelle Modus: „Datei laden“ und nach Änderungen „Datei speichern“ (Download).'
+  };
+  return null;
+}
+
+/* Geladene Rohdaten validieren und (falls v1) auf Schema v2 migrieren.
+   Bei Migration: dezenter Hinweis; persistiert wird beim nächsten Speichern. */
+let loadWasMigrated = false;
+function applyLoadedData(raw) {
+  const d = validateData(raw);
+  loadWasMigrated = migrateData(d);
+  if (loadWasMigrated) {
+    const banner = document.createElement('div');
+    banner.className = 'notice notice-ok';
+    banner.innerHTML = 'Datei wurde auf Version 2 aktualisiert (Fahrlizenz und Stufe statt einem Qualifikationsfeld). ' +
+      'Die Aktualisierung wird beim nächsten Speichern in die Datei übernommen. ' +
+      '<button class="btn btn-sm" onclick="this.parentElement.remove()">OK</button>';
+    $('.app-main').prepend(banner);
+  }
+  return d;
+}
 
 const $ = sel => document.querySelector(sel);
 const $$ = sel => [...document.querySelectorAll(sel)];
@@ -784,11 +1107,14 @@ function updateFileStatus() {
     btn.textContent = 'Trennen';
   } else if (fileMode === 'manual') {
     if (manualDirty) el.classList.add('is-dirty');
-    txt.textContent = 'Manueller Modus' + (manualDirty ? ' – ungespeicherte Änderungen!' : (lastSavedAt ? ' – zuletzt gespeichert ' + lastSavedAt : ''));
+    const reason = manualModeReason();
+    txt.textContent = 'Manueller Modus' + (reason ? ' (' + reason.kurz + ')' : '') +
+      (manualDirty ? ' – ungespeicherte Änderungen!' : (lastSavedAt ? ' – zuletzt gespeichert ' + lastSavedAt : ''));
+    if (reason) txt.title = reason.lang;
     btn.textContent = 'Datei speichern';
   } else {
     txt.textContent = 'Keine Datei verbunden';
-    btn.textContent = FSA_SUPPORTED ? 'Datei wählen …' : 'Datei laden …';
+    btn.textContent = fsaUsable() ? 'Datei wählen …' : 'Datei laden …';
   }
   renderFileView();
 }
@@ -801,10 +1127,21 @@ async function readHandleText() {
 
 async function loadFromHandle() {
   const text = await readHandleText();
-  data = validateData(JSON.parse(text));
-  lastSavedText = text;
   fileMode = 'fsa';
+  data = applyLoadedData(JSON.parse(text));
+  lastSavedText = text;
   renderAll();
+}
+
+/* Zugriff verweigert/blockiert (z. B. Richtlinie) → in den manuellen Modus wechseln */
+function handleFsaError(e) {
+  if (e && (e.name === 'SecurityError' || e.name === 'NotAllowedError')) {
+    fsaBlocked = true;
+    updateFileStatus();
+    infoDialog('<h3>Dateizugriff blockiert</h3><p>' + esc(manualModeReason().lang) + '</p>');
+    return true;
+  }
+  return false;
 }
 
 async function connectFile() {
@@ -819,6 +1156,7 @@ async function connectFile() {
     updateFileStatus();
   } catch (e) {
     if (e && e.name === 'AbortError') return;
+    if (handleFsaError(e)) return;
     infoDialog('<h3>Fehler beim Öffnen</h3><p>' + esc(e.message) + '</p>');
   }
 }
@@ -836,6 +1174,7 @@ async function createNewFile() {
     renderAll(); updateFileStatus();
   } catch (e) {
     if (e && e.name === 'AbortError') return;
+    if (handleFsaError(e)) return;
     infoDialog('<h3>Fehler</h3><p>' + esc(e.message) + '</p>');
   }
 }
@@ -915,8 +1254,9 @@ function manualLoad(file) {
   const reader = new FileReader();
   reader.onload = () => {
     try {
-      data = validateData(JSON.parse(reader.result));
-      fileMode = 'manual'; manualDirty = false; lastSavedAt = null;
+      data = applyLoadedData(JSON.parse(reader.result));
+      fileMode = 'manual'; lastSavedAt = null;
+      manualDirty = loadWasMigrated; // Migration soll beim nächsten Speichern in die Datei
       renderAll(); updateFileStatus();
     } catch (e) { infoDialog('<h3>Datei konnte nicht gelesen werden</h3><p>' + esc(e.message) + '</p>'); }
   };
@@ -937,7 +1277,7 @@ function manualSave() {
 function renderFileView() {
   const info = $('#fileModeInfo'), btns = $('#fileButtons');
   if (!info) return;
-  if (FSA_SUPPORTED) {
+  if (fsaUsable()) {
     info.innerHTML = '<div class="notice ' + (fileMode === 'fsa' ? 'notice-ok' : '') + '">' +
       (fileMode === 'fsa' && fileHandle
         ? 'Verbunden mit <strong>' + esc(fileHandle.name) + '</strong>. Änderungen werden automatisch gespeichert.'
@@ -951,10 +1291,9 @@ function renderFileView() {
     $('#btnNewFsa').onclick = createNewFile;
     if ($('#btnDisconnect')) $('#btnDisconnect').onclick = disconnectFile;
   } else {
-    info.innerHTML = '<div class="notice notice-warn"><strong>Manueller Modus:</strong> Der direkte Dateizugriff ' +
-      '(File System Access API) ist hier nicht verfügbar (z. B. bei file:// geöffnet). ' +
-      'Datei über „Datei laden“ öffnen und nach Änderungen über „Datei speichern“ herunterladen ' +
-      '(Download dann in den OneDrive-Ordner legen und ersetzen).</div>';
+    const reason = manualModeReason();
+    info.innerHTML = '<div class="notice notice-warn"><strong>Manueller Modus:</strong> ' +
+      esc(reason ? reason.lang : 'Der direkte Dateizugriff ist hier nicht verfügbar.') + '</div>';
     btns.innerHTML =
       '<input type="file" id="manualFileInput" accept=".json,application/json">' +
       '<button class="btn btn-primary" id="btnManualLoad">Datei laden</button>' +
@@ -985,7 +1324,7 @@ $('#mainNav').addEventListener('click', e => {
 $('#btnFileAction').addEventListener('click', () => {
   if (fileMode === 'fsa' && fileHandle) disconnectFile();
   else if (fileMode === 'manual') manualSave();
-  else if (FSA_SUPPORTED) connectFile();
+  else if (fsaUsable()) connectFile();
   else { $$('#mainNav button').find(b => b.dataset.view === 'datei').click(); }
 });
 
@@ -996,10 +1335,113 @@ function visiblePeople(showInactive) {
   return data.people.filter(p => showInactive || p.status !== 'ausgetreten');
 }
 
+/* Lizenz/Stufe als kompakte Badges; „Stufe fehlt“ mit Schnell-Bearbeitung */
+function lizenzBadge(p) {
+  return `<span class="chip chip-muted">${esc(p.fahrlizenz || 'keine')}</span>`;
+}
+function stufeBadge(p) {
+  if (p.stufe == null) {
+    const alt = p.qualifikationAlt ? 'alte Qualifikation: ' + p.qualifikationAlt + ' — ' : '';
+    return `<button class="chip chip-warn chip-btn" data-fix-stufe="${esc(p.id)}" title="${esc(alt)}Stufe nachpflegen (bis dahin nicht TF-geeignet)">Stufe fehlt</button>`;
+  }
+  return `<span class="chip ${p.stufe === 'NFS' ? 'chip-ok' : 'chip-muted'}">${esc(p.stufe)}</span>`;
+}
+function eignungText(p) {
+  const f = data.categories.filter(c => !c.eligibleFlag && darfFahren(p, c)).map(c => c.label);
+  const t = data.categories.filter(c => !c.eligibleFlag && darfTf(p, c)).map(c => c.label);
+  return 'darf fahren: ' + (f.join(', ') || '–') + ' · darf TF: ' + (t.join(', ') || (p.stufe == null ? '– (Stufe fehlt)' : '–'));
+}
+
+async function quickFixStufe(pid) {
+  const p = data.people.find(x => x.id === pid);
+  if (!p) return;
+  const ok = await showDialog(
+    `<h3>Stufe nachpflegen</h3><p>${esc(p.nachname + ' ' + p.vorname)}` +
+    (p.qualifikationAlt ? ' — alte Qualifikation: <strong>' + esc(p.qualifikationAlt) + '</strong>' : '') + `</p>
+    <label>Stufe <select id="qfStufe">${STUFE_LIST.map(s => `<option>${s}</option>`).join('')}</select></label>`,
+    [{ label: 'Speichern', value: true, primary: true }, { label: 'Abbrechen', value: false }]);
+  if (!ok) return;
+  p.stufe = $('#appDialog #qfStufe').value;
+  if (p.stufe === 'Praktikant') p.fahrlizenz = 'keine';
+  delete p.qualifikationAlt; // Hinweis ist erledigt
+  dataChanged();
+}
+
+/* Klicks auf „Stufe fehlt“-Badges (Dashboard- und Personen-Tabelle) */
+document.addEventListener('click', e => {
+  const btn = e.target.closest('[data-fix-stufe]');
+  if (btn) quickFixStufe(btn.dataset.fixStufe);
+});
+
+/* ===== FEATURE: Wer-ist-dran-Karten ===== */
+const dranExpand = new Set(); // 'RTW|fahrer' → aufgeklappt
+function renderDranCards(stats) {
+  const wrap = $('#dranCards');
+  const aktive = data.people.filter(p => p.status !== 'ausgetreten');
+  let html = '';
+  for (const cat of data.categories) {
+    if (!cat.fairness) continue;
+    /* Spalten je Karte: Flag-Kategorie (DF) eine, sonst Fahrer und – falls es
+       auf der Kategorie TF gibt – TF. Personen mit stufe=null fehlen in
+       TF-Spalten automatisch (darfTf), in Fahrer-Spalten normal. */
+    const cols = [];
+    if (cat.eligibleFlag) {
+      cols.push({ key: 'flag', titel: 'dran', cands: aktive.filter(p => !!p[cat.eligibleFlag]) });
+    } else {
+      if ((cat.eligibleFahrer || []).length) cols.push({ key: 'fahrer', titel: 'als Fahrer dran', cands: aktive.filter(p => darfFahren(p, cat)) });
+      if ((cat.eligibleTf || []).length) cols.push({ key: 'tf', titel: 'als TF dran', cands: aktive.filter(p => darfTf(p, cat)) });
+    }
+    if (!cols.length) continue;
+    html += `<div class="dran-card"><h3>Wer ist dran? — ${esc(cat.label)}</h3><div class="dran-cols">`;
+    for (const col of cols) {
+      const expandKey = cat.id + '|' + col.key;
+      const ranked = rankDran(col.cands, stats, cat.id);
+      const shown = dranExpand.has(expandKey) ? ranked : ranked.slice(0, 3);
+      html += `<div class="dran-col">` + (cols.length > 1 || col.key !== 'flag' ? `<h4>${esc(col.titel)}</h4>` : '');
+      html += '<ol class="dran-list">' + shown.map(r =>
+        `<li><span class="dran-name">${esc(r.p.nachname)} ${esc(r.p.vorname)}</span>` +
+        (r.wenigDaten ? ' <span class="chip chip-warn" title="weniger als 5 erfasste Dienste — Reihung normal, aber dünne Datenbasis">wenig Daten</span>' : '') +
+        `<div class="dran-meta">${fmtPct(r.anteil)} · ${r.count}× ${esc(cat.label)} · zuletzt ${
+          r.last ? `<span title="${esc(fmtDateDE(r.last))}">${esc(fmtVorN(r.lastN))}</span>` : 'nie'
+        } · ${r.dienste} Dienste gesamt</div></li>`
+      ).join('') + '</ol>';
+      if (ranked.length > 3) {
+        html += `<button class="btn btn-sm dran-toggle" data-dran-toggle="${esc(expandKey)}">${
+          dranExpand.has(expandKey) ? 'weniger anzeigen' : 'alle ' + ranked.length + ' anzeigen'}</button>`;
+      }
+      if (!ranked.length) html += '<p class="hint">keine Berechtigten</p>';
+      html += '</div>';
+    }
+    html += '</div></div>';
+  }
+  wrap.innerHTML = html;
+  wrap.querySelectorAll('[data-dran-toggle]').forEach(btn => btn.onclick = () => {
+    const k = btn.dataset.dranToggle;
+    if (dranExpand.has(k)) dranExpand.delete(k); else dranExpand.add(k);
+    renderDashboard();
+  });
+}
+
+/* ===== FEATURE: Gast-Quote (Karte) ===== */
+function renderGastCard(gast) {
+  const card = $('#gastCard');
+  if (!gast.einsaetze) { card.hidden = true; return; }
+  card.hidden = false;
+  $('#gastCardBody').innerHTML =
+    `<p class="hint">${gast.einsaetze} Gast-Einsätze von ${gast.verschiedene} verschiedenen Gästen — ` +
+    `${fmtPct(gast.anteil)} aller Crew-Plätze. Häufige Gäste sind gute Kandidaten fürs Anwerben:</p>` +
+    '<ol style="margin:0;padding-left:1.4em;font-size:var(--fs-sm)">' +
+    gast.top.map(g => `<li>${esc(g.name)} <span class="muted">(${g.count} Einsätze)</span></li>`).join('') +
+    '</ol>';
+}
+
 function renderDashboard() {
   const stats = computeStats(data);
-  const marks = fairnessMarks(data, stats);
   const cats = data.categories;
+  const fairCats = cats.filter(c => c.fairness);
+  const gast = computeGastStats(data);
+
+  renderDranCards(stats);
 
   /* Zusammenfassung */
   const sum = $('#dashSummary');
@@ -1007,31 +1449,44 @@ function renderDashboard() {
   sum.innerHTML =
     '<div class="stat-box"><div class="stat-value">' + stats.evenings + '</div><div class="stat-label">erfasste Abende</div></div>' +
     '<div class="stat-box"><div class="stat-value">' + activeCount + '</div><div class="stat-label">aktive Personen</div></div>' +
-    cats.map(c => '<div class="stat-box"><div class="stat-value">' + (stats.catTotals[c.id] || 0) + '</div><div class="stat-label">' + esc(c.label) + ' gesamt</div></div>').join('');
+    cats.map(c => '<div class="stat-box"><div class="stat-value">' + (stats.catTotals[c.id] || 0) + '</div><div class="stat-label">' + esc(c.label) + ' gesamt</div></div>').join('') +
+    /* FEATURE: Gast-Quote in der Zusammenfassung */
+    (gast.einsaetze ?
+      '<div class="stat-box"><div class="stat-value">' + gast.einsaetze + '</div><div class="stat-label">Gast-Einsätze (' + gast.verschiedene + ' Gäste)</div></div>' +
+      '<div class="stat-box"><div class="stat-value">' + fmtPct(gast.anteil) + '</div><div class="stat-label">Anteil an Crew-Plätzen</div></div>'
+      : '');
 
-  /* Filter-Selects befüllen (Auswahl erhalten) */
-  const qualSel = $('#dashFilterQual'), eligSel = $('#dashFilterElig');
-  const prevQual = qualSel.value, prevElig = eligSel.value;
-  qualSel.innerHTML = '<option value="">alle</option>' + QUAL_LIST.map(q => `<option>${q}</option>`).join('');
-  eligSel.innerHTML = '<option value="">alle</option>' + cats.map(c => `<option value="${esc(c.id)}">${esc(c.label)}-berechtigt</option>`).join('');
-  qualSel.value = prevQual; eligSel.value = prevElig;
+  /* Eignungs-Filter Rolle × Kategorie (Auswahl erhalten) */
+  const rolleSel = $('#dashFilterRolle'), katSel = $('#dashFilterKat');
+  const prevKat = katSel.value;
+  katSel.innerHTML = '<option value="">– Kategorie –</option>' + cats.map(c => `<option value="${esc(c.id)}">${esc(c.label)}</option>`).join('');
+  katSel.value = prevKat;
 
   let people = visiblePeople($('#dashShowInactive').checked);
-  if (qualSel.value) people = people.filter(p => p.qualifikation === qualSel.value);
-  if (eligSel.value) {
-    const cat = cats.find(c => c.id === eligSel.value);
-    if (cat) people = people.filter(p => isEligible(p, cat));
-  }
+  const rolle = rolleSel.value, katId = katSel.value;
+  const filterKat = cats.find(c => c.id === katId) || null;
+  const darfRolle = (p, c) => rolle === 'tf' ? darfTf(p, c) : darfFahren(p, c);
+  if (filterKat && rolle) people = people.filter(p => darfRolle(p, filterKat));
+  else if (filterKat) people = people.filter(p => isEligible(p, filterKat));
+  else if (rolle) people = people.filter(p => cats.some(c => !c.eligibleFlag && darfRolle(p, c)));
+
+  /* Fairness innerhalb der aktuell gefilterten Menge; ohne Filter über alle */
+  const filtered = !!(rolle || filterKat);
+  const marks = fairnessMarks(data, stats, filtered ? people : undefined);
 
   /* Kopf */
   const cols = [
     { key: 'nachname', label: 'Nachname' }, { key: 'vorname', label: 'Vorname' },
-    { key: 'qualifikation', label: 'Qualifikation' }, { key: 'status', label: 'Status' },
+    { key: 'fahrlizenz', label: 'Lizenz' }, { key: 'stufe', label: 'Stufe' }, { key: 'status', label: 'Status' },
     { key: 'dienste', label: 'Dienste', num: true }, { key: 'presence', label: 'Anwesenheit %', num: true }
   ];
   for (const c of cats) {
     cols.push({ key: 'cnt_' + c.id, label: c.label, num: true, cat: c.id });
     cols.push({ key: 'pct_' + c.id, label: c.label + ' %', num: true, cat: c.id });
+  }
+  /* FEATURE: Zuletzt-Spalten für die Fairness-Kategorien */
+  for (const c of fairCats) {
+    cols.push({ key: 'last_' + c.id, label: c.label + ' zuletzt', num: true, cat: c.id });
   }
   $('#dashTable thead').innerHTML = '<tr>' + cols.map(c =>
     `<th class="sortable" data-key="${c.key}">${esc(c.label)}${dashSort.key === c.key ? ' <span class="sort-arrow">' + (dashSort.dir > 0 ? '▲' : '▼') + '</span>' : ''}</th>`
@@ -1048,10 +1503,15 @@ function renderDashboard() {
   const rows = people.map(p => {
     const s = stats.perPerson[p.id];
     const vals = {
-      nachname: p.nachname, vorname: p.vorname, qualifikation: p.qualifikation, status: p.status,
+      nachname: p.nachname, vorname: p.vorname, fahrlizenz: p.fahrlizenz, stufe: p.stufe || '', status: p.status,
       dienste: s.dienste, presence: s.presencePct
     };
     for (const c of cats) { vals['cnt_' + c.id] = s.catCounts[c.id]; vals['pct_' + c.id] = s.catPct[c.id]; }
+    /* Sortierwert „zuletzt“: Anzahl Abende seitdem; nie = Infinity (am längsten her) */
+    for (const c of fairCats) {
+      const n = eveningsSince(stats, s.lastCat[c.id] || null);
+      vals['last_' + c.id] = n === null ? Infinity : n;
+    }
     return { p, s, vals };
   });
   rows.sort((a, b) => {
@@ -1065,7 +1525,8 @@ function renderDashboard() {
     const m = marks[p.id] || {};
     let html = `<tr class="${p.status === 'ausgetreten' ? 'is-inactive' : ''}">`;
     html += `<td>${esc(p.nachname)}</td><td>${esc(p.vorname)}</td>`;
-    html += `<td title="${esc(QUAL_INFO[p.qualifikation] || '')}">${esc(p.qualifikation)}${p.qualifikation === 'B3-NFS' ? ' <span class="chip chip-ok" title="Notfallsanität – jeder RTW braucht mind. 1 NFS">NFS</span>' : ''}${p.df ? ' <span class="chip chip-muted" title="DF-berechtigt">DF</span>' : ''}</td>`;
+    html += `<td title="${esc(eignungText(p))}">${lizenzBadge(p)}</td>`;
+    html += `<td title="${esc(eignungText(p))}">${stufeBadge(p)}${p.df ? ' <span class="chip chip-muted" title="DF-berechtigt">DF</span>' : ''}</td>`;
     html += `<td>${esc(p.status)}</td>`;
     html += `<td class="num">${s.dienste}</td><td class="num">${fmtPct(s.presencePct)}</td>`;
     for (const c of cats) {
@@ -1075,25 +1536,17 @@ function renderDashboard() {
       html += `<td class="num ${cls}" title="${esc(title)}">${vals['cnt_' + c.id]}</td>`;
       html += `<td class="num ${cls}" title="${esc(title)}">${fmtPct(vals['pct_' + c.id])}</td>`;
     }
+    for (const c of fairCats) {
+      const last = s.lastCat[c.id] || null;
+      html += `<td class="num" title="${esc(last ? fmtDateDE(last) : 'noch nie ' + c.label)}">${esc(fmtVorN(eveningsSince(stats, last)))}</td>`;
+    }
     return html + '</tr>';
   }).join('') || '<tr><td colspan="99" class="muted">Keine Personen erfasst.</td></tr>';
 
-  /* DF-Tabelle */
-  const dfCat = cats.find(c => c.id === 'DF');
-  const dfPeople = data.people.filter(p => p.df && p.status !== 'ausgetreten');
-  $('#dfTable thead').innerHTML = '<tr><th>Person</th><th>DF-Dienste</th><th>Anteil an Diensten</th><th>Dienste gesamt</th><th>Anwesenheit %</th></tr>';
-  $('#dfTable tbody').innerHTML = dfPeople.map(p => {
-    const s = stats.perPerson[p.id];
-    const m = (marks[p.id] || {})['DF'];
-    const cls = m === 'low' ? 'fair-low' : m === 'next' ? 'fair-next' : '';
-    return `<tr><td>${esc(p.nachname)} ${esc(p.vorname)}</td>` +
-      `<td class="num ${cls}">${dfCat ? s.catCounts['DF'] : '–'}</td>` +
-      `<td class="num ${cls}">${dfCat ? fmtPct(s.catPct['DF']) : '–'}</td>` +
-      `<td class="num">${s.dienste}</td><td class="num">${fmtPct(s.presencePct)}</td></tr>`;
-  }).join('') || '<tr><td colspan="5" class="muted">Keine Personen mit DF-Berechtigung.</td></tr>';
+  renderGastCard(gast);
 }
 
-['dashFilterQual', 'dashFilterElig', 'dashShowInactive'].forEach(id => {
+['dashFilterRolle', 'dashFilterKat', 'dashShowInactive'].forEach(id => {
   document.getElementById(id).addEventListener('change', renderDashboard);
 });
 </script>
@@ -1113,14 +1566,21 @@ $('#btnParse').addEventListener('click', () => {
     for (const c of t.crew) {
       const key = normKey(c.name);
       if (preview.nameRes.has(key)) continue;
-      const m = matchPersonName(c.name, data.people);
-      preview.nameRes.set(key, {
+      /* Gast-Automatik: match → Mitglied; gastListe → still Gast; nicht zuordenbar →
+         automatisch Gast; verdächtig ähnlich zu einem Mitglied → Unklar-Liste */
+      const r = resolvePlanName(c.name, data.people, data.gastListe);
+      const entry = {
         raw: c.name,
-        action: m.status === 'match' ? 'person' : 'offen',
-        personId: m.status === 'match' ? m.person.id : '',
-        candidates: m.candidates.map(p => p.id),
-        auto: m.status === 'match'
-      });
+        action: r.status === 'match' ? 'person' : (r.status === 'gast' || r.status === 'gast-neu') ? 'gast' : 'offen',
+        personId: r.status === 'match' ? r.person.id : (r.suggestion ? r.suggestion.id : ''),
+        candidates: r.candidates.map(p => p.id),
+        auto: r.status !== 'unklar',
+        bekannterGast: r.status === 'gast',
+        gastSektion: r.status === 'gast' || r.status === 'gast-neu',
+        suggestion: r.suggestion ? r.suggestion.id : null,
+        neuFields: null
+      };
+      preview.nameRes.set(key, entry);
     }
   }
   renderPreview();
@@ -1175,22 +1635,55 @@ function renderPreview() {
   }
   html += '</tbody></table></div>';
 
-  /* Unklare Namen */
-  const open = [...preview.nameRes.values()].filter(r => !r.auto);
-  if (open.length) {
-    html += '<h3 style="margin-top:var(--sp-4)">Unklare Namen</h3><p class="hint">Diese Namen konnten keiner aktiven Person eindeutig zugeordnet werden. Gewählte Zuordnungen werden als Alias gemerkt; Gäste werden komplett ignoriert.</p>';
-    for (const r of open) {
-      const key = normKey(r.raw);
-      const opts = data.people
-        .slice().sort((a, b) => (a.nachname + a.vorname).localeCompare(b.nachname + b.vorname))
-        .map(p => `<option value="${esc(p.id)}" ${r.personId === p.id ? 'selected' : ''}>${esc(personLabel(p))}</option>`).join('');
-      html += `<div class="toolbar"><strong>${esc(r.raw)}</strong>
-        ${r.candidates.length > 1 ? '<span class="chip chip-warn">mehrdeutig</span>' : ''}
-        <label><input type="radio" name="nr_${esc(key)}" value="gast" ${r.action === 'gast' ? 'checked' : ''}> Gast (ignorieren)</label>
-        <label><input type="radio" name="nr_${esc(key)}" value="person" ${r.action === 'person' ? 'checked' : ''}> ist Mitglied:</label>
-        <select data-nr-person="${esc(key)}"><option value="">– wählen –</option>${opts}</select>
-        <label><input type="radio" name="nr_${esc(key)}" value="neu" ${r.action === 'neu' ? 'checked' : ''}> neu in Stammdaten aufnehmen</label>
+  /* Eine Auswahl-Zeile je Name (für Gäste- und Unklar-Sektion identisch) */
+  function nameResRowHtml(r, gastHinweis) {
+    const key = normKey(r.raw);
+    const opts = data.people
+      .slice().sort((a, b) => (a.nachname + a.vorname).localeCompare(b.nachname + b.vorname))
+      .map(p => `<option value="${esc(p.id)}" ${r.personId === p.id ? 'selected' : ''}>${esc(personLabel(p))}</option>`).join('');
+    let h = `<div class="toolbar"><strong>${esc(r.raw)}</strong>
+      ${gastHinweis || ''}
+      <label><input type="radio" name="nr_${esc(key)}" value="gast" ${r.action === 'gast' ? 'checked' : ''}> Gast</label>
+      <label><input type="radio" name="nr_${esc(key)}" value="person" ${r.action === 'person' ? 'checked' : ''}> ist Mitglied:</label>
+      <select data-nr-person="${esc(key)}"><option value="">– wählen –</option>${opts}</select>
+      <label><input type="radio" name="nr_${esc(key)}" value="neu" ${r.action === 'neu' ? 'checked' : ''}> neu als Mitglied aufnehmen</label>
+    </div>`;
+    /* Mini-Formular fürs Neu-Anlegen direkt in der Vorschau (kein Nachpflegen nötig) */
+    if (r.action === 'neu' && r.neuFields) {
+      const f = r.neuFields;
+      h += `<div class="form-grid" style="margin:0 0 var(--sp-3) 1.5em;max-width:560px" data-neu-form="${esc(key)}">
+        <label>Vorname</label><input type="text" data-neu="${esc(key)}|vorname" value="${esc(f.vorname)}">
+        <label>Nachname</label><input type="text" data-neu="${esc(key)}|nachname" value="${esc(f.nachname)}">
+        <label>Fahrlizenz</label><select data-neu="${esc(key)}|fahrlizenz" ${f.stufe === 'Praktikant' ? 'disabled title="Praktikant hat keine Fahrlizenz"' : ''}>${
+          FAHRLIZENZ_LIST.map(l => `<option ${f.fahrlizenz === l ? 'selected' : ''}>${l}</option>`).join('')}</select>
+        <label>Stufe</label><select data-neu="${esc(key)}|stufe"><option value="">– Stufe fehlt –</option>${
+          STUFE_LIST.map(s => `<option ${f.stufe === s ? 'selected' : ''}>${s}</option>`).join('')}</select>
+        <label>DF-berechtigt</label><input type="checkbox" data-neu="${esc(key)}|df" ${f.df ? 'checked' : ''} style="justify-self:start">
       </div>`;
+    }
+    return h;
+  }
+
+  /* Als Gäste erfasst (Gast-Automatik) — transparent mit Umschalt-Option je Name */
+  const gaeste = [...preview.nameRes.values()].filter(r => r.gastSektion);
+  if (gaeste.length) {
+    html += '<h3 style="margin-top:var(--sp-4)">Als Gäste erfasst</h3><p class="hint">Diese Namen gehören zu keinem Mitglied und werden als Gäste mitgezählt (nicht in der Dienst-Statistik). Bestätigte Gäste merkt sich die App.</p>';
+    for (const r of gaeste) {
+      html += nameResRowHtml(r, r.bekannterGast ? '<span class="chip chip-muted" title="schon früher als Gast bestätigt">bekannter Gast</span>' : '<span class="chip chip-muted">automatisch</span>');
+    }
+  }
+
+  /* Unklare Namen (mehrdeutig oder verdächtig ähnlich zu einem Mitglied) */
+  const open = [...preview.nameRes.values()].filter(r => !r.auto && !r.gastSektion);
+  if (open.length) {
+    html += '<h3 style="margin-top:var(--sp-4)">Unklare Namen</h3><p class="hint">Diese Namen ähneln einem Mitglied oder sind mehrdeutig — bitte entscheiden. Gewählte Zuordnungen werden als Alias gemerkt.</p>';
+    for (const r of open) {
+      let hinweis = '';
+      if (r.suggestion) {
+        const p = data.people.find(p => p.id === r.suggestion);
+        if (p) hinweis = `<span class="chip chip-warn" title="kleine Abweichung in der Schreibweise">Wahrscheinlich ${esc(p.vorname)} ${esc(p.nachname)}?</span>`;
+      } else if (r.candidates.length > 1) hinweis = '<span class="chip chip-warn">mehrdeutig</span>';
+      html += nameResRowHtml(r, hinweis);
     }
   }
 
@@ -1234,6 +1727,16 @@ function renderPreview() {
         const sel = area.querySelector(`select[data-nr-person="${CSS.escape(key)}"]`);
         r.personId = sel.value;
       }
+      if (radio.value === 'neu' && !r.neuFields) {
+        /* Mini-Formular vorbefüllen: letztes Wort = Nachname */
+        const raw = normSpace(r.raw);
+        const i = raw.lastIndexOf(' ');
+        r.neuFields = {
+          vorname: i > 0 ? raw.slice(0, i) : '',
+          nachname: i > 0 ? raw.slice(i + 1) : raw,
+          fahrlizenz: 'keine', stufe: '', df: false
+        };
+      }
       renderPreview();
     };
   });
@@ -1242,6 +1745,19 @@ function renderPreview() {
       const r = preview.nameRes.get(sel.dataset.nrPerson);
       r.action = 'person'; r.personId = sel.value;
       renderPreview();
+    };
+  });
+  area.querySelectorAll('[data-neu]').forEach(inp => {
+    inp.onchange = () => {
+      const [key, field] = inp.dataset.neu.split('|');
+      const f = preview.nameRes.get(key).neuFields;
+      if (!f) return;
+      if (field === 'df') f.df = inp.checked;
+      else f[field] = inp.value;
+      if (field === 'stufe') {
+        if (f.stufe === 'Praktikant') f.fahrlizenz = 'keine'; // Regel: Praktikant ohne Lizenz
+        renderPreview();
+      }
     };
   });
   area.querySelectorAll('input[data-partial]').forEach(inp => {
@@ -1280,14 +1796,21 @@ async function confirmEvening() {
   const open = [...preview.nameRes.values()].some(r => r.action === 'offen' || (r.action === 'person' && !r.personId));
   if (open) { hint.textContent = 'Bitte alle unklaren Namen auflösen.'; return; }
 
-  /* Neue Personen anlegen */
+  /* Neue Personen aus dem Mini-Formular anlegen (Status aktiv) */
   const ids = new Set(data.people.map(p => p.id));
   for (const r of preview.nameRes.values()) {
     if (r.action !== 'neu') continue;
     const raw = normSpace(r.raw);
     const i = raw.lastIndexOf(' ');
-    const vorname = i > 0 ? raw.slice(0, i) : '', nachname = i > 0 ? raw.slice(i + 1) : raw;
-    const p = { id: makePersonId(nachname, vorname, ids), nachname, vorname, qualifikation: '', status: 'aktiv', df: false, eintritt: null, austritt: null, aliases: [] };
+    const f = r.neuFields || { vorname: i > 0 ? raw.slice(0, i) : '', nachname: i > 0 ? raw.slice(i + 1) : raw, fahrlizenz: 'keine', stufe: '', df: false };
+    const nachname = normSpace(f.nachname), vorname = normSpace(f.vorname);
+    if (!nachname) { hint.textContent = 'Bitte beim neuen Mitglied „' + raw + '“ einen Nachnamen angeben.'; return; }
+    const stufe = f.stufe || null;
+    const p = {
+      id: makePersonId(nachname, vorname, ids), nachname, vorname,
+      fahrlizenz: stufe === 'Praktikant' ? 'keine' : (f.fahrlizenz || 'keine'), stufe,
+      status: 'aktiv', df: !!f.df, austritt: null, aliases: []
+    };
     ids.add(p.id);
     data.people.push(p);
     r.action = 'person'; r.personId = p.id;
@@ -1302,20 +1825,35 @@ async function confirmEvening() {
     }
   }
 
-  /* Abend bauen */
-  const evening = { date: preview.date, assignments: {}, partials: {} };
+  /* Abend bauen — Rolle aus der Spaltenposition wird mitgeschrieben (Zusatzinfo,
+     ändert nichts am Zählen); Gäste werden je Abend erfasst und nicht gezählt */
+  const evening = { date: preview.date, assignments: {}, partials: {}, gaeste: [] };
   for (const t of preview.tours) {
     for (const c of t.crew) {
       const r = preview.nameRes.get(normKey(c.name));
-      if (!r || r.action !== 'person' || !r.personId) continue;
+      if (!r) continue;
+      if (r.action === 'gast') {
+        if (!evening.gaeste.some(g => normKey(g) === normKey(c.name))) evening.gaeste.push(normSpace(c.name));
+        continue;
+      }
+      if (r.action !== 'person' || !r.personId) continue;
       const list = evening.assignments[r.personId] || (evening.assignments[r.personId] = []);
-      for (const cid of t.catIds) if (!list.includes(cid)) list.push(cid);
+      for (const cid of t.catIds) {
+        if (!list.some(e => e.kat === cid)) list.push({ kat: cid, rolle: c.rolle });
+      }
     }
   }
   for (const [pid, v] of preview.partials) {
     if (evening.assignments[pid] && v !== 1) evening.partials[pid] = v;
   }
   if (Object.keys(evening.partials).length === 0) delete evening.partials;
+  if (evening.gaeste.length === 0) delete evening.gaeste;
+
+  /* Bestätigte Gäste in die globale gastListe (kein erneutes Nachfragen) */
+  data.gastListe = data.gastListe || [];
+  for (const g of (evening.gaeste || [])) {
+    if (!data.gastListe.some(x => normKey(x) === normKey(g))) data.gastListe.push(g);
+  }
 
   let mode = null;
   if (data.evenings.some(e => e.date === evening.date)) {
@@ -1329,20 +1867,22 @@ async function confirmEvening() {
   dataChanged();
   preview = null;
   $('#pasteInput').value = '';
-  $('#previewArea').innerHTML = '<div class="notice notice-ok">Abend ' + esc(fmtDateDE(evening.date)) + ' wurde ' + what + ' (' + Object.keys(evening.assignments).length + ' Personen).</div>';
+  $('#previewArea').innerHTML = '<div class="notice notice-ok">Abend ' + esc(fmtDateDE(evening.date)) + ' wurde ' + what + ' (' + Object.keys(evening.assignments).length + ' Personen' + (evening.gaeste && evening.gaeste.length ? ', ' + evening.gaeste.length + ' Gäste' : '') + ').</div>';
 }
 
 /* ===================== Abende-Ansicht ===================== */
 function renderEvenings() {
   const evs = sortedEvenings(data).reverse();
-  $('#eveningsTable thead').innerHTML = '<tr><th>Datum</th><th>Personen</th><th>Kategorien</th><th></th></tr>';
+  $('#eveningsTable thead').innerHTML = '<tr><th>Datum</th><th>Personen</th><th>Gäste</th><th>Kategorien</th><th></th></tr>';
   $('#eveningsTable tbody').innerHTML = evs.map(ev => {
     const counts = {};
-    for (const pid of Object.keys(ev.assignments)) for (const cid of ev.assignments[pid]) counts[cid] = (counts[cid] || 0) + 1;
+    for (const pid of Object.keys(ev.assignments)) for (const cid of assignmentCats(ev, pid)) counts[cid] = (counts[cid] || 0) + 1;
     const catTxt = data.categories.filter(c => counts[c.id]).map(c => c.label + ' ' + counts[c.id]).join(', ');
-    return `<tr><td>${esc(fmtDateDE(ev.date))}</td><td class="num">${Object.keys(ev.assignments).length}</td><td>${esc(catTxt)}</td>
+    const gastN = (ev.gaeste || []).length;
+    return `<tr><td>${esc(fmtDateDE(ev.date))}</td><td class="num">${Object.keys(ev.assignments).length}</td>
+      <td class="num" title="${esc((ev.gaeste || []).join(', '))}">${gastN || ''}</td><td>${esc(catTxt)}</td>
       <td><button class="btn btn-sm" data-open-ev="${ev.date}">Öffnen</button> <button class="btn btn-sm btn-danger" data-del-ev="${ev.date}">Löschen</button></td></tr>`;
-  }).join('') || '<tr><td colspan="4" class="muted">Noch keine Abende erfasst.</td></tr>';
+  }).join('') || '<tr><td colspan="5" class="muted">Noch keine Abende erfasst.</td></tr>';
 
   $('#eveningsTable tbody').onclick = async e => {
     const openBtn = e.target.closest('[data-open-ev]'), delBtn = e.target.closest('[data-del-ev]');
@@ -1363,11 +1903,13 @@ function renderEveningDetail(date) {
   const ev = data.evenings.find(e => e.date === date);
   if (!ev) { $('#eveningDetail').innerHTML = ''; return; }
   const pids = new Set([...Object.keys(ev.assignments), ...Object.keys(ev.partials || {})]);
+  const ROLLE_LABEL = { fahrer: 'Fahrer', tf: 'TF', p2: '2. Trspf.' };
   const rows = [...pids].map(pid => {
     const p = data.people.find(p => p.id === pid);
     const cats = data.categories.map(c => {
-      const on = (ev.assignments[pid] || []).includes(c.id);
-      return `<label style="margin-right:var(--sp-2)"><input type="checkbox" data-ev-cat="${esc(pid)}|${esc(c.id)}" ${on ? 'checked' : ''}> ${esc(c.label)}</label>`;
+      const entry = (ev.assignments[pid] || []).find(e => e.kat === c.id);
+      const rolleTxt = entry && entry.rolle ? ' <span class="hint">(' + (ROLLE_LABEL[entry.rolle] || entry.rolle) + ')</span>' : '';
+      return `<label style="margin-right:var(--sp-2)"><input type="checkbox" data-ev-cat="${esc(pid)}|${esc(c.id)}" ${entry ? 'checked' : ''}> ${esc(c.label)}${rolleTxt}</label>`;
     }).join('');
     const part = ev.partials && ev.partials[pid] !== undefined ? ev.partials[pid] : '';
     return `<tr><td>${esc(p ? personLabel(p) : pid + ' (unbekannt)')}</td><td>${cats}</td>
@@ -1381,16 +1923,22 @@ function renderEveningDetail(date) {
     <div class="table-wrap"><table class="data"><thead><tr><th>Person</th><th>Kategorien</th><th>Anwesenheit (leer = automatisch)</th><th></th></tr></thead>
     <tbody>${rows}</tbody></table></div>
     <div class="toolbar" style="margin-top:var(--sp-3)"><select id="evAddPerson"><option value="">– Person hinzufügen –</option>${addOpts}</select>
-    <button class="btn btn-sm" id="btnEvAdd">Hinzufügen</button></div></div>`;
+    <button class="btn btn-sm" id="btnEvAdd">Hinzufügen</button></div>
+    <div class="toolbar"><label>Gäste (kommagetrennt) <input type="text" id="evGaeste" style="min-width:320px" value="${esc((ev.gaeste || []).join(', '))}"></label></div></div>`;
 
   const root = $('#eveningDetail');
   root.querySelectorAll('[data-ev-cat]').forEach(cb => cb.onchange = () => {
     const [pid, cid] = cb.dataset.evCat.split('|');
     const list = ev.assignments[pid] || (ev.assignments[pid] = []);
-    if (cb.checked) { if (!list.includes(cid)) list.push(cid); }
-    else { ev.assignments[pid] = list.filter(x => x !== cid); if (!ev.assignments[pid].length) delete ev.assignments[pid]; }
+    if (cb.checked) { if (!list.some(e => e.kat === cid)) list.push({ kat: cid, rolle: null }); }
+    else { ev.assignments[pid] = list.filter(e => e.kat !== cid); if (!ev.assignments[pid].length) delete ev.assignments[pid]; }
     dataChanged(); renderEveningDetail(date);
   });
+  $('#evGaeste').onchange = () => {
+    const list = $('#evGaeste').value.split(',').map(normSpace).filter(Boolean);
+    if (list.length) ev.gaeste = list; else delete ev.gaeste;
+    dataChanged();
+  };
   root.querySelectorAll('[data-ev-part]').forEach(inp => inp.onchange = () => {
     const pid = inp.dataset.evPart;
     ev.partials = ev.partials || {};
@@ -1417,12 +1965,12 @@ function renderEveningDetail(date) {
 function renderPersons() {
   const show = $('#personsShowInactive').checked;
   const people = visiblePeople(show).slice().sort((a, b) => (a.nachname + a.vorname).localeCompare(b.nachname + b.vorname));
-  $('#personsTable thead').innerHTML = '<tr><th>Nachname</th><th>Vorname</th><th>Qualifikation</th><th>darf fahren</th><th>DF</th><th>Status</th><th>Eintritt</th><th>Austritt</th><th>Aliasse</th><th></th></tr>';
+  $('#personsTable thead').innerHTML = '<tr><th>Nachname</th><th>Vorname</th><th>Lizenz</th><th>Stufe</th><th>Eignung</th><th>DF</th><th>Status</th><th>Austritt</th><th>Aliasse</th><th></th></tr>';
   $('#personsTable tbody').innerHTML = people.map(p =>
     `<tr class="${p.status === 'ausgetreten' ? 'is-inactive' : ''}"><td>${esc(p.nachname)}</td><td>${esc(p.vorname)}</td>
-     <td>${esc(p.qualifikation)}</td><td class="hint">${esc(QUAL_INFO[p.qualifikation] || '')}</td>
+     <td>${lizenzBadge(p)}</td><td>${stufeBadge(p)}</td><td class="hint">${esc(eignungText(p))}</td>
      <td>${p.df ? '✓' : ''}</td><td>${esc(p.status)}</td>
-     <td>${esc(fmtDateDE(p.eintritt))}</td><td>${esc(fmtDateDE(p.austritt))}</td>
+     <td>${esc(fmtDateDE(p.austritt))}</td>
      <td class="hint">${esc((p.aliases || []).join(', '))}</td>
      <td><button class="btn btn-sm" data-edit-person="${esc(p.id)}">Bearbeiten</button></td></tr>`
   ).join('') || '<tr><td colspan="10" class="muted">Keine Personen.</td></tr>';
@@ -1435,17 +1983,18 @@ $('#personsShowInactive').addEventListener('change', renderPersons);
 $('#btnNewPerson').addEventListener('click', () => openPersonForm(null));
 
 function openPersonForm(pid) {
-  const p = pid ? data.people.find(p => p.id === pid) : { nachname: '', vorname: '', qualifikation: 'B2', status: 'aktiv', df: false, eintritt: null, austritt: null, aliases: [] };
+  const p = pid ? data.people.find(p => p.id === pid) : { nachname: '', vorname: '', fahrlizenz: 'keine', stufe: null, status: 'aktiv', df: false, austritt: null, aliases: [] };
+  const istPrkt = p.stufe === 'Praktikant';
   $('#personFormArea').innerHTML = `<div class="card"><div class="card-title"><h3>${pid ? 'Person bearbeiten' : 'Person anlegen'}</h3></div>
+    ${p.qualifikationAlt && p.stufe == null ? `<div class="notice notice-warn">Aus der alten Statistik übernommen: Qualifikation <strong>${esc(p.qualifikationAlt)}</strong> — bitte die Stufe nachpflegen. Der Hinweis verschwindet, sobald eine Stufe gespeichert ist.</div>` : ''}
     <div class="form-grid">
       <label>Nachname</label><input type="text" id="pfNachname" value="${esc(p.nachname)}">
       <label>Vorname</label><input type="text" id="pfVorname" value="${esc(p.vorname)}">
-      <label>Qualifikation</label><select id="pfQual">${['', ...QUAL_LIST].map(q => `<option value="${q}" ${p.qualifikation === q ? 'selected' : ''}>${q || '– keine –'}</option>`).join('')}</select>
-      <label></label><span class="hint" id="pfQualInfo">${esc(QUAL_INFO[p.qualifikation] || '')}</span>
+      <label>Stufe</label><select id="pfStufe"><option value="" ${p.stufe == null ? 'selected' : ''}>– Stufe fehlt (nachpflegen) –</option>${STUFE_LIST.map(s => `<option ${p.stufe === s ? 'selected' : ''}>${s}</option>`).join('')}</select>
+      <label></label><span class="hint">ohne Stufe gilt die Person als nicht TF-geeignet</span>
+      <label id="pfLizenzLabel" ${istPrkt ? 'hidden' : ''}>Fahrlizenz</label><select id="pfLizenz" ${istPrkt ? 'hidden' : ''}>${FAHRLIZENZ_LIST.map(l => `<option ${(p.fahrlizenz || 'keine') === l ? 'selected' : ''}>${l}</option>`).join('')}</select>
       <label>Status</label><select id="pfStatus"><option ${p.status === 'aktiv' ? 'selected' : ''}>aktiv</option><option ${p.status === 'ausgetreten' ? 'selected' : ''}>ausgetreten</option></select>
       <label>DF-berechtigt</label><input type="checkbox" id="pfDf" ${p.df ? 'checked' : ''} style="justify-self:start">
-      <label>Eintritt</label><input type="date" id="pfEintritt" value="${esc(p.eintritt || '')}">
-      <label></label><span class="hint">leer = ab erstem Auftreten im Plan</span>
       <label>Austritt</label><input type="date" id="pfAustritt" value="${esc(p.austritt || '')}">
       <label>Aliasse</label><input type="text" id="pfAliases" value="${esc((p.aliases || []).join(', '))}" placeholder="abweichende Schreibweisen, kommagetrennt">
     </div>
@@ -1454,18 +2003,30 @@ function openPersonForm(pid) {
       <button class="btn" id="pfCancel">Abbrechen</button>
       ${pid ? '<button class="btn btn-danger" id="pfDelete">Löschen</button>' : ''}
     </div></div>`;
-  $('#pfQual').onchange = e => { $('#pfQualInfo').textContent = QUAL_INFO[e.target.value] || ''; };
+  /* Regel: Praktikant hat keine Fahrlizenz → Lizenzfeld ausblenden */
+  $('#pfStufe').onchange = e => {
+    const prkt = e.target.value === 'Praktikant';
+    $('#pfLizenz').hidden = prkt;
+    $('#pfLizenzLabel').hidden = prkt;
+    if (prkt) $('#pfLizenz').value = 'keine';
+  };
   $('#pfCancel').onclick = () => { $('#personFormArea').innerHTML = ''; };
   $('#pfSave').onclick = () => {
     const nachname = normSpace($('#pfNachname').value), vorname = normSpace($('#pfVorname').value);
     if (!nachname) { infoDialog('<p>Bitte mindestens einen Nachnamen angeben.</p>'); return; }
+    const stufe = $('#pfStufe').value || null;
     const vals = {
       nachname, vorname,
-      qualifikation: $('#pfQual').value, status: $('#pfStatus').value, df: $('#pfDf').checked,
-      eintritt: $('#pfEintritt').value || null, austritt: $('#pfAustritt').value || null,
+      fahrlizenz: stufe === 'Praktikant' ? 'keine' : $('#pfLizenz').value,
+      stufe, status: $('#pfStatus').value, df: $('#pfDf').checked,
+      austritt: $('#pfAustritt').value || null,
       aliases: $('#pfAliases').value.split(',').map(normSpace).filter(Boolean)
     };
-    if (pid) Object.assign(data.people.find(p => p.id === pid), vals);
+    if (pid) {
+      const tgt = data.people.find(p => p.id === pid);
+      Object.assign(tgt, vals);
+      if (tgt.stufe != null) delete tgt.qualifikationAlt; // Migrations-Hinweis erledigt
+    }
     else data.people.push(Object.assign({ id: makePersonId(nachname, vorname, new Set(data.people.map(p => p.id))) }, vals));
     $('#personFormArea').innerHTML = '';
     dataChanged();
@@ -1486,12 +2047,13 @@ function openPersonForm(pid) {
 
 /* ===================== Kategorieverwaltung ===================== */
 function renderCategories() {
-  $('#categoriesTable thead').innerHTML = '<tr><th>ID</th><th>Bezeichnung</th><th>Präfixe</th><th>Codes</th><th>Fairness</th><th>Berechtigung</th><th></th></tr>';
+  $('#categoriesTable thead').innerHTML = '<tr><th>ID</th><th>Bezeichnung</th><th>Präfixe</th><th>Codes</th><th>Fairness</th><th>Fahrer-Eignung</th><th>TF-Eignung</th><th></th></tr>';
   $('#categoriesTable tbody').innerHTML = data.categories.map(c =>
     `<tr><td class="mono">${esc(c.id)}</td><td>${esc(c.label)}</td>
      <td class="mono">${esc((c.matchPrefixes || []).join(', '))}</td><td class="mono">${esc((c.matchCodes || []).join(', '))}</td>
      <td>${c.fairness ? '✓' : ''}</td>
-     <td class="hint">${c.eligibleFlag ? 'Häkchen „' + esc(c.eligibleFlag) + '“' : esc((c.eligibleQuals || []).join(', '))}</td>
+     <td class="hint">${c.eligibleFlag ? 'Häkchen „' + esc(c.eligibleFlag) + '“' : esc((c.eligibleFahrer || []).join(', ') || '–')}</td>
+     <td class="hint">${c.eligibleFlag ? '–' : esc((c.eligibleTf || []).join(', ') || 'kein TF')}</td>
      <td><button class="btn btn-sm" data-edit-cat="${esc(c.id)}">Bearbeiten</button></td></tr>`
   ).join('');
   $('#categoriesTable tbody').onclick = e => {
@@ -1502,7 +2064,7 @@ function renderCategories() {
 $('#btnNewCategory').addEventListener('click', () => openCategoryForm(null));
 
 function openCategoryForm(cid, presetCode) {
-  const c = cid ? data.categories.find(c => c.id === cid) : { id: '', label: '', matchPrefixes: [], matchCodes: presetCode ? [presetCode] : [], fairness: false, eligibleQuals: [] };
+  const c = cid ? data.categories.find(c => c.id === cid) : { id: '', label: '', matchPrefixes: [], matchCodes: presetCode ? [presetCode] : [], fairness: false, eligibleFahrer: [], eligibleTf: [] };
   $('#categoryFormArea').innerHTML = `<div class="card"><div class="card-title"><h3>${cid ? 'Kategorie bearbeiten' : 'Kategorie anlegen'}</h3></div>
     <div class="form-grid">
       <label>ID</label><input type="text" id="cfId" value="${esc(c.id)}" ${cid ? 'disabled' : ''} placeholder="z. B. NFS">
@@ -1511,10 +2073,12 @@ function openCategoryForm(cid, presetCode) {
       <label>Codes</label><input type="text" id="cfCodes" value="${esc((c.matchCodes || []).join(', '))}" placeholder="z. B. ÄBD, ÄND">
       <label>Fairness</label><label style="justify-self:start"><input type="checkbox" id="cfFairness" ${c.fairness ? 'checked' : ''}> im Dashboard hervorheben (wer ist „dran“)</label>
       <label>Berechtigung</label><span>
-        <label><input type="radio" name="cfEligMode" value="quals" ${!c.eligibleFlag ? 'checked' : ''}> nach Qualifikation</label>
+        <label><input type="radio" name="cfEligMode" value="listen" ${!c.eligibleFlag ? 'checked' : ''}> nach Fahrlizenz/Stufe</label>
         <label style="margin-left:var(--sp-3)"><input type="radio" name="cfEligMode" value="flag" ${c.eligibleFlag ? 'checked' : ''}> nach Häkchen (df)</label>
       </span>
-      <label></label><span id="cfQuals">${QUAL_LIST.map(q => `<label style="margin-right:var(--sp-3)"><input type="checkbox" data-cf-qual="${q}" ${(c.eligibleQuals || []).includes(q) ? 'checked' : ''}> ${q}</label>`).join('')}</span>
+      <label>Fahrer-Eignung</label><span id="cfFahrer">${FAHRLIZENZ_LIST.filter(l => l !== 'keine').map(l => `<label style="margin-right:var(--sp-3)"><input type="checkbox" data-cf-fahrer="${l}" ${(c.eligibleFahrer || []).includes(l) ? 'checked' : ''}> ${l}</label>`).join('')}</span>
+      <label>TF-Eignung</label><span id="cfTf">${STUFE_LIST.filter(s => s !== 'Praktikant').map(s => `<label style="margin-right:var(--sp-3)"><input type="checkbox" data-cf-tf="${s}" ${(c.eligibleTf || []).includes(s) ? 'checked' : ''}> ${s}</label>`).join('')}
+        <span class="hint">nichts angehakt = auf dieser Kategorie gibt es keinen TF</span></span>
     </div>
     <div class="toolbar" style="margin-top:var(--sp-4)">
       <button class="btn btn-primary" id="cfSave">Speichern</button>
@@ -1534,11 +2098,14 @@ function openCategoryForm(cid, presetCode) {
       matchCodes: $('#cfCodes').value.split(',').map(normSpace).filter(Boolean),
       fairness: $('#cfFairness').checked
     };
-    if (eligMode === 'flag') { vals.eligibleFlag = 'df'; delete vals.eligibleQuals; }
-    else { vals.eligibleQuals = $$('#cfQuals input:checked').map(cb => cb.dataset.cfQual); }
+    if (eligMode === 'flag') { vals.eligibleFlag = 'df'; }
+    else {
+      vals.eligibleFahrer = $$('#cfFahrer input:checked').map(cb => cb.dataset.cfFahrer);
+      vals.eligibleTf = $$('#cfTf input:checked').map(cb => cb.dataset.cfTf);
+    }
     if (cid) {
       const cat = data.categories.find(c => c.id === cid);
-      delete cat.eligibleFlag; delete cat.eligibleQuals;
+      delete cat.eligibleFlag; delete cat.eligibleFahrer; delete cat.eligibleTf;
       Object.assign(cat, vals);
     } else data.categories.push(vals);
     $('#categoryFormArea').innerHTML = '';
@@ -1546,7 +2113,7 @@ function openCategoryForm(cid, presetCode) {
     if (preview) { reResolveCodes(); renderPreview(); }
   };
   if (cid && $('#cfDelete')) $('#cfDelete').onclick = async () => {
-    const used = data.evenings.some(ev => Object.values(ev.assignments).some(list => list.includes(cid)));
+    const used = data.evenings.some(ev => Object.values(ev.assignments).some(list => list.some(e => e.kat === cid)));
     const ok = await showDialog('<h3>Kategorie löschen?</h3><p>' + (used ? 'Achtung: Diese Kategorie ist in erfassten Abenden enthalten; die Einträge bleiben dann unzugeordnet. ' : '') + 'Wirklich löschen?</p>',
       [{ label: 'Löschen', value: true, danger: true }, { label: 'Abbrechen', value: false }]);
     if (ok) {
@@ -1622,16 +2189,17 @@ $('#btnExcelExport').addEventListener('click', () => {
   const cats = data.categories;
   const wb = XLSX.utils.book_new();
 
-  const ovHead = ['Nachname', 'Vorname', 'Qualifikation', 'Status', 'Dienste', 'Anwesenheit %'];
+  const ovHead = ['Nachname', 'Vorname', 'Fahrlizenz', 'Stufe', 'Status', 'Dienste', 'Anwesenheit %'];
   for (const c of cats) { ovHead.push(c.label, c.label + ' %'); }
   const ovRows = data.people.map(p => {
     const s = stats.perPerson[p.id];
-    const row = [p.nachname, p.vorname, p.qualifikation, p.status, s.dienste, s.presencePct === null ? '' : Math.round(s.presencePct * 1000) / 10];
+    const row = [p.nachname, p.vorname, p.fahrlizenz, p.stufe || '', p.status, s.dienste, s.presencePct === null ? '' : Math.round(s.presencePct * 1000) / 10];
     for (const c of cats) row.push(s.catCounts[c.id], s.catPct[c.id] === null ? '' : Math.round(s.catPct[c.id] * 1000) / 10);
     return row;
   });
   XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet([ovHead, ...ovRows]), 'Übersicht');
 
+  const ROLLE_LABEL = { fahrer: 'Fahrer', tf: 'TF', p2: '2. Trspf.' };
   const rawRows = [['Datum', 'Nachname', 'Vorname', 'Kategorien', 'Anwesenheit']];
   for (const ev of sortedEvenings(data)) {
     const pids = new Set([...Object.keys(ev.assignments), ...Object.keys(ev.partials || {})]);
@@ -1639,17 +2207,85 @@ $('#btnExcelExport').addEventListener('click', () => {
       const p = data.people.find(p => p.id === pid) || { nachname: pid, vorname: '' };
       const a = ev.assignments[pid] || [];
       const part = ev.partials && ev.partials[pid] !== undefined ? ev.partials[pid] : (a.length ? 1 : 0);
-      rawRows.push([ev.date, p.nachname, p.vorname, a.map(catLabel).join('/'), part]);
+      const katTxt = a.map(e => catLabel(e.kat) + (e.rolle ? ' (' + (ROLLE_LABEL[e.rolle] || e.rolle) + ')' : '')).join('/');
+      rawRows.push([ev.date, p.nachname, p.vorname, katTxt, part]);
     }
+    for (const g of (ev.gaeste || [])) rawRows.push([ev.date, g, '', '(Gast)', '']);
   }
   XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(rawRows), 'Abende');
 
-  const sdRows = [['Nachname', 'Vorname', 'Qualifikation', 'Status', 'DF', 'Eintritt', 'Austritt', 'Aliasse']];
-  for (const p of data.people) sdRows.push([p.nachname, p.vorname, p.qualifikation, p.status, p.df ? 'ja' : '', p.eintritt || '', p.austritt || '', (p.aliases || []).join(', ')]);
+  const sdRows = [['Nachname', 'Vorname', 'Fahrlizenz', 'Stufe', 'Status', 'DF', 'Austritt', 'Aliasse']];
+  for (const p of data.people) sdRows.push([p.nachname, p.vorname, p.fahrlizenz, p.stufe || '', p.status, p.df ? 'ja' : '', p.austritt || '', (p.aliases || []).join(', ')]);
   XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(sdRows), 'Stammdaten');
 
   XLSX.writeFile(wb, 'Zug11_Statistik_Export.xlsx');
 });
+
+/* ===================== FEATURE: Bericht (Druck/PDF) =====================
+   Eigenständige Druckansicht ohne Library und ohne Netzwerk: #reportView wird
+   befüllt, eine Body-Klasse blendet die App im Druck aus, dann Browser-Druck
+   (Strg+P → „Als PDF speichern“). Rückstandsfrei entfernbar: dieser Block,
+   der #reportView-Container, der Bericht-Button und der Print-CSS-Abschnitt. */
+function renderReport() {
+  const stats = computeStats(data);
+  const gast = computeGastStats(data);
+  const cats = data.categories;
+  const evs = sortedEvenings(data);
+  const heute = new Date();
+  const stichtag = String(heute.getDate()).padStart(2, '0') + '.' + String(heute.getMonth() + 1).padStart(2, '0') + '.' + heute.getFullYear();
+
+  let html = '<h1>Zug 11 Statistik</h1>' +
+    '<div class="report-sub">Stichtag ' + stichtag +
+    (evs.length ? ' · letzter erfasster Abend ' + esc(fmtDateDE(evs[evs.length - 1].date)) : '') + '</div>';
+
+  /* Zusammenfassung */
+  html += '<h2>Zusammenfassung</h2><div class="report-stats">' +
+    '<span><b>' + stats.evenings + '</b> Abende</span>' +
+    cats.map(c => '<span><b>' + (stats.catTotals[c.id] || 0) + '</b> ' + esc(c.label) + '</span>').join('') +
+    (gast.einsaetze ? '<span><b>' + gast.einsaetze + '</b> Gast-Einsätze (' + gast.verschiedene + ' Gäste, ' + fmtPct(gast.anteil) + ' der Crew-Plätze)</span>' : '') +
+    '</div>';
+
+  /* Personentabelle (aktive, nach Nachname) */
+  const people = data.people.filter(p => p.status !== 'ausgetreten')
+    .slice().sort((a, b) => (a.nachname + a.vorname).localeCompare(b.nachname + b.vorname, 'de'));
+  html += '<h2>Personen</h2><table><thead><tr><th>Name</th><th>Lizenz</th><th>Stufe</th><th class="num">Dienste</th><th class="num">Anwesenheit</th>' +
+    cats.map(c => '<th class="num">' + esc(c.label) + '</th><th class="num">%</th>').join('') + '</tr></thead><tbody>';
+  for (const p of people) {
+    const s = stats.perPerson[p.id];
+    html += '<tr><td>' + esc(p.nachname) + ' ' + esc(p.vorname) + '</td><td>' + esc(p.fahrlizenz) + '</td><td>' + esc(p.stufe || 'fehlt') + '</td>' +
+      '<td class="num">' + s.dienste + '</td><td class="num">' + fmtPct(s.presencePct) + '</td>' +
+      cats.map(c => '<td class="num">' + s.catCounts[c.id] + '</td><td class="num">' + fmtPct(s.catPct[c.id]) + '</td>').join('') + '</tr>';
+  }
+  html += '</tbody></table>';
+
+  /* Dran-Übersicht kompakt (Top 3 je Fairness-Kategorie/Rolle) */
+  const aktive = data.people.filter(p => p.status !== 'ausgetreten');
+  html += '<h2>Wer ist dran?</h2><div class="report-dran">';
+  for (const cat of cats) {
+    if (!cat.fairness) continue;
+    const cols = cat.eligibleFlag
+      ? [{ titel: esc(cat.label), cands: aktive.filter(p => !!p[cat.eligibleFlag]) }]
+      : [
+          (cat.eligibleFahrer || []).length ? { titel: esc(cat.label) + ' als Fahrer', cands: aktive.filter(p => darfFahren(p, cat)) } : null,
+          (cat.eligibleTf || []).length ? { titel: esc(cat.label) + ' als TF', cands: aktive.filter(p => darfTf(p, cat)) } : null
+        ].filter(Boolean);
+    for (const col of cols) {
+      const top = rankDran(col.cands, stats, cat.id).slice(0, 3);
+      html += '<div><strong>' + col.titel + '</strong><ol style="margin:2pt 0;padding-left:14pt">' +
+        top.map(r => '<li>' + esc(r.p.nachname) + ' ' + esc(r.p.vorname) + ' (' + fmtPct(r.anteil) + ', zuletzt ' + esc(fmtVorN(r.lastN)) + ')</li>').join('') +
+        '</ol></div>';
+    }
+  }
+  html += '</div>';
+  $('#reportView').innerHTML = html;
+}
+
+$('#btnReport').addEventListener('click', () => {
+  renderReport();
+  document.body.classList.add('print-report');
+  window.print();
+});
+window.addEventListener('afterprint', () => document.body.classList.remove('print-report'));
 
 /* ===================== Init ===================== */
 function renderAll() {

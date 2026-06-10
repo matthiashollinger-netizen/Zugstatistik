@@ -21,12 +21,20 @@ geöffnet) oder über GitHub Pages.
      Verfügung — dann gilt der manuelle Modus: „Datei laden“ und nach
      Änderungen „Datei speichern“ (Download in den OneDrive-Ordner legen).
 3. Unter **Abend erfassen** den Dienstplan von der Dienstplan-Webseite
-   kopieren und einfügen → **Vorschau** → unklare Namen auflösen → **Abend
-   verbuchen**.
-4. Das **Dashboard** zeigt je Person Dienste, Anwesenheit und je Kategorie
-   Anzahl + Anteil an Diensten. Bei Fairness-Kategorien (RTW, ÄBD, DF) sind
-   die berechtigten Personen mit dem niedrigsten Anteil markiert — sie sind
-   „dran“.
+   kopieren und einfügen → **Vorschau** → Gäste bestätigen / unklare Namen
+   auflösen → **Abend verbuchen**. Nicht zuordenbare Namen werden automatisch
+   als Gast erfasst (die App merkt sich bestätigte Gäste); Namen, die einem
+   Mitglied verdächtig ähneln (Tippfehler), bleiben zur Entscheidung in der
+   Unklar-Liste. Neue Mitglieder lassen sich direkt in der Vorschau anlegen.
+4. Das **Dashboard** zeigt oben je Fairness-Kategorie (RTW, ÄBD, DF) eine
+   **„Wer ist dran?“-Karte** (bei RTW getrennt nach Fahrer und
+   Transportführer): Reihung nach niedrigstem Anteil, dann „am längsten her“,
+   dann wenigste Dienste. Darunter je Person Dienste, Anwesenheit, je
+   Kategorie Anzahl + Anteil sowie „zuletzt“-Spalten; Filter nach Eignung
+   (Rolle × Kategorie). Die Gast-Quote zeigt, wie viele Crew-Plätze von
+   Gästen gefüllt wurden.
+5. **Bericht** (Kopfzeile) öffnet eine aufgeräumte Druckansicht des aktuellen
+   Stands — über den Browser-Druck auch als PDF speicherbar.
 
 Zum Ausprobieren ohne echte Daten: `Statistik.beispiel.json` laden
 (Fantasienamen).
@@ -35,6 +43,11 @@ Zum Ausprobieren ohne echte Daten: `Statistik.beispiel.json` laden
 
 * Quelle der Wahrheit ist genau eine JSON-Datei (z. B. `Statistik.json` in
   einem geteilten OneDrive-Ordner). Kein localStorage, keine Datenbank.
+* Aktuelles Datei-Schema: **Version 2** (Fahrlizenz `keine/A/B2/B3` und Stufe
+  `Praktikant/RS1/RS2/NFS` statt einem Qualifikationsfeld; Zuordnungen mit
+  Rolle; Gäste je Abend). Eine v1-Datei wird beim Laden automatisch und
+  verlustfrei migriert — bei A/B2/B3 fehlt danach die Stufe und wird im UI
+  als „Stufe nachpflegen“ markiert.
 * Vor jedem Speichern prüft die App, ob die Datei zwischenzeitlich geändert
   wurde (z. B. von einem anderen Kommandomitglied), und warnt dann.
 * OneDrive kann bei gleichzeitigem Speichern Konfliktkopien anlegen — größere

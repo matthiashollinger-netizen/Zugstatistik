@@ -5,9 +5,13 @@ Statistik.json
 Zug11_Statistik_Export*.xlsx
 *.xlsx
 
+# Zugangsdaten — niemals committen
+github_token.txt
+
 # System / Tooling
 .DS_Store
 node_modules/
+.claude/
 
 # Ausnahme: mitgelieferte Bibliothek bleibt im Repo
 !vendor/
