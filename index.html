@@ -1014,11 +1014,19 @@ function manualModeReason() {
             'Bis dahin gilt der manuelle Modus: „Datei laden“ und nach Änderungen „Datei speichern“ (Download).'
     };
   }
-  if (fsaBlocked) return {
-    kurz: 'Dateizugriff blockiert',
-    lang: 'Der Browser könnte direkt speichern, der Zugriff wurde aber verweigert oder blockiert (z. B. durch eine Richtlinie). ' +
-          'Es gilt der manuelle Modus: „Datei laden“ und nach Änderungen „Datei speichern“ (Download).'
-  };
+  if (fsaBlocked) {
+    /* manche Browser stellen die API unter file:// bereit, blockieren aber den Aufruf */
+    if (location.protocol === 'file:') return {
+      kurz: 'per file:// geöffnet',
+      lang: 'Direkt-Speichern ist nur über die Web-Adresse möglich — bitte die GitHub-Pages-URL verwenden. ' +
+            'Hier gilt der manuelle Modus: „Datei laden“ und nach Änderungen „Datei speichern“ (Download in den OneDrive-Ordner legen und ersetzen).'
+    };
+    return {
+      kurz: 'Dateizugriff blockiert',
+      lang: 'Der Browser könnte direkt speichern, der Zugriff wurde aber verweigert oder blockiert (z. B. durch eine Richtlinie). ' +
+            'Es gilt der manuelle Modus: „Datei laden“ und nach Änderungen „Datei speichern“ (Download).'
+    };
+  }
   return null;
 }
 
