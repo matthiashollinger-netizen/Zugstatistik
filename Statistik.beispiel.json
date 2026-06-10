@@ -1,5 +1,5 @@
 {
-  "version": 2,
+  "version": 3,
   "categories": [
     { "id": "RTW", "label": "RTW", "matchPrefixes": ["R"], "matchCodes": [], "fairness": true, "eligibleFahrer": ["B3"], "eligibleTf": ["RS2", "NFS"] },
     { "id": "KTW", "label": "KTW", "matchPrefixes": ["K"], "matchCodes": [], "fairness": false, "eligibleFahrer": ["A", "B2", "B3"], "eligibleTf": ["RS1", "RS2", "NFS"] },

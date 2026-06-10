@@ -88,8 +88,50 @@ function approx(a, b, eps) { return Math.abs(a - b) < (eps || 1e-6); }
         res.dfCandidates.length + ' DF-Kandidaten' + (res.warnings.length ? ', Hinweise: ' + res.warnings.join(' | ') : ''));
   assert(res.data.evenings.length >= 10, 'Abende importiert (war: ' + res.data.evenings.length + ')');
 
-  // ---- Schema v2 nach Import: Migration der Quali-Werte stichprobenhaft prüfen ----
-  assert(res.data.version === 2, 'Import liefert Schema v2 (war: ' + res.data.version + ')');
+  // ---- DF-Realität (verifizierter Befund, v1.2 Abschnitt 0 — kein Bug) ----
+  // 15 DF-Einträge gesamt; an genau 5 Terminen je 2 DF gleichzeitig (geteilter Dienst).
+  let dfGesamt = 0;
+  const doppelTage = [];
+  for (const ev of res.data.evenings) {
+    const n = Object.keys(ev.assignments).filter(pid => assignmentCats(ev, pid).includes('DF')).length;
+    dfGesamt += n;
+    if (n > 1) doppelTage.push(ev.date + '×' + n);
+  }
+  assert(dfGesamt === 15, '15 DF-Einträge gesamt (war: ' + dfGesamt + ')');
+  const erwartetDoppel = ['2026-01-01×2', '2026-01-12×2', '2026-01-24×2', '2026-01-25×2', '2026-02-27×2'];
+  assert(doppelTage.join(',') === erwartetDoppel.join(','), 'genau die 5 bekannten Doppel-DF-Tage (war: ' + doppelTage.join(',') + ')');
+  // Zellwerte gesamt wie in der alten Mappe (Eintrags-Zählung — die alte
+  // Übersicht zählte jede Zelle voll; die gewichteten v3-Werte können bei
+  // Teil-Anwesenheiten im Altbestand darunter liegen)
+  const entryTotals = { KTW: 0, RTW: 0, ABD: 0, ZBV: 0, DF: 0 };
+  for (const ev of res.data.evenings) {
+    for (const pid of Object.keys(ev.assignments)) {
+      for (const cid of assignmentCats(ev, pid)) entryTotals[cid] = (entryTotals[cid] || 0) + 1;
+    }
+  }
+  assert(entryTotals.KTW === 146, 'KTW-Einträge gesamt 146 (war: ' + entryTotals.KTW + ')');
+  assert(entryTotals.RTW === 80, 'RTW-Einträge gesamt 80 (war: ' + entryTotals.RTW + ')');
+  assert(entryTotals.ABD === 6, 'ÄND-Einträge gesamt 6 (war: ' + entryTotals.ABD + ')');
+  assert(entryTotals.DF === 15, 'DF-Einträge gesamt 15 (war: ' + entryTotals.DF + ')');
+  assert(entryTotals.ZBV === 0, 'kein ZBV im Altbestand (war: ' + entryTotals.ZBV + ')');
+  // Datenprüfung: die 5 Doppel-DF-Abende erscheinen als Hinweis, nicht als Fehler
+  const findings = checkData(res.data);
+  const dfHinweise = findings.filter(f => f.code === 'df-mehrfach');
+  assert(dfHinweise.length === 5, 'Datenprüfung meldet 5 Doppel-DF-Hinweise (war: ' + dfHinweise.length + ')');
+  assert(dfHinweise.every(f => f.typ === 'hinweis'), 'Doppel-DF ist Hinweis, kein Fehler');
+  // Datenrealität: der Altbestand enthält 3 Abende mit Anwesenheit 0 trotz
+  // Dienst-Eintrag → unter v3 Faktor 0 = Fehler-Befund. Genau dafür ist das
+  // Panel da: sichtbar machen, nicht automatisch „wegfixen“.
+  const fehler = findings.filter(f => f.typ === 'fehler');
+  assert(fehler.length === 3 && fehler.every(f => f.code === 'faktor'),
+    'genau die 3 bekannten Faktor-Befunde aus dem Altbestand (war: ' + fehler.map(f => f.code).join(',') + ')');
+  for (const f of fehler) print('Info (Altbestand): ' + f.text);
+  print('Datenprüfung: ' + findings.length + ' Befunde (' + dfHinweise.length + '× Doppel-DF, ' +
+        findings.filter(f => f.code === 'stufe-fehlt').length + '× Stufe-fehlt-Sammelhinweis, ' +
+        fehler.length + '× Faktor-Altbestand)');
+
+  // ---- Schema nach Import: Migration der Quali-Werte stichprobenhaft prüfen ----
+  assert(res.data.version === 3, 'Import liefert Schema v3 (war: ' + res.data.version + ')');
   assert(Array.isArray(res.data.gastListe), 'gastListe vorhanden');
   let migChecked = 0, stufeFehlt = 0;
   for (const row of REAL.stammdaten.slice(1)) {
@@ -139,6 +181,22 @@ function approx(a, b, eps) { return Math.abs(a - b) < (eps || 1e-6); }
     oldAttend.set(normKey(row[0] + ' ' + row[1]), { sum, n });
   }
 
+  // Eintrags-Zählung je Person (Semantik der alten Übersicht: jede Zelle voll).
+  // Die gewichteten v3-Werte (stats) weichen bei Teil-Anwesenheiten im
+  // Altbestand bewusst ab — diese Fälle werden unten als Info gelistet.
+  const entriesByPid = new Map();
+  for (const ev of res.data.evenings) {
+    for (const pid of Object.keys(ev.assignments)) {
+      const cats = assignmentCats(ev, pid);
+      if (!cats.length) continue;
+      const e = entriesByPid.get(pid) || { dienste: 0, counts: {} };
+      e.dienste++;
+      for (const cid of cats) e.counts[cid] = (e.counts[cid] || 0) + 1;
+      entriesByPid.set(pid, e);
+    }
+  }
+  let teilDienstFaelle = 0;
+
   // Übersicht: [Nachname, Vorname, Qual, Nr, Anwesenheit, KTW, RTW, ÄND, DF, KTW%, RTW%, ÄND%, DF%]
   const catCols = [[5, 'KTW'], [6, 'RTW'], [7, 'ABD'], [8, 'DF']];
   const pctCols = [[9, 'KTW'], [10, 'RTW'], [11, 'ABD'], [12, 'DF']];
@@ -149,19 +207,26 @@ function approx(a, b, eps) { return Math.abs(a - b) < (eps || 1e-6); }
     assert(m.status === 'match', 'Übersicht-Person gefunden: ' + row[0]);
     if (m.status !== 'match') continue;
     const s = stats.perPerson[m.person.id];
+    const entries = entriesByPid.get(m.person.id) || { dienste: 0, counts: {} };
     const who = normSpace(row[0]) + ' ' + normSpace(row[1]);
     checked++;
 
     for (const [col, cid] of catCols) {
       const want = parseNumCell(row[col]);
       if (want === null) continue;
-      assert(s.catCounts[cid] === want, who + ': ' + cid + '-Anzahl ' + s.catCounts[cid] + ' ≠ Übersicht ' + want);
+      const got = entries.counts[cid] || 0;
+      assert(got === want, who + ': ' + cid + '-Einträge ' + got + ' ≠ Übersicht ' + want);
     }
     for (const [col, cid] of pctCols) {
       const want = parseNumCell(row[col]);
       if (want === null) continue; // #DIV/0! oder leer
-      const got = s.catPct[cid];
-      assert(got !== null && approx(got, want), who + ': ' + cid + '-%: ' + got + ' ≠ Übersicht ' + want);
+      const got = entries.dienste > 0 ? (entries.counts[cid] || 0) / entries.dienste : null;
+      assert(got !== null && approx(got, want), who + ': ' + cid + '-% (Eintragsbasis) ' + got + ' ≠ Übersicht ' + want);
+    }
+    /* gewichtete v3-Werte ≠ Eintrags-Zählung → Teil-Anwesenheit im Altbestand wirkt jetzt als Faktor */
+    if (Math.abs(s.dienste - entries.dienste) > 1e-9) {
+      teilDienstFaelle++;
+      print('Info: ' + who + ' – Teil-Anwesenheit im Altbestand: ' + entries.dienste + ' Dienst-Einträge zählen gewichtet als ' + s.dienste);
     }
 
     // Anwesenheit: Summe muss dem Altbestand exakt entsprechen. Der Nenner ist im

@@ -64,6 +64,10 @@
   --focus-ring:0 0 0 3px rgba(226,0,26,.22);
   --shadow:0 1px 2px rgba(20,24,31,.06),0 1px 3px rgba(20,24,31,.04);
   --shadow-lg:0 12px 32px rgba(20,24,31,.18),0 2px 8px rgba(20,24,31,.08);
+  /* Heatmap (Farbskala der alten Excel, Anker 0 % / 50 % / 100 %) */
+  --heat-low:#F8696B;
+  --heat-mid:#FFEB84;
+  --heat-high:#63BE7B;
 }
 /* ===================== Basis ===================== */
 *{box-sizing:border-box}
@@ -137,8 +141,9 @@ table.data th.cat-cnt,table.data td.cat-cnt{border-left:1px solid var(--border)}
 table.data th.cat-pct{color:var(--text-faint)}
 table.data td.cat-pct{color:var(--text-faint);font-size:.72rem}
 table.data tr.is-inactive td{color:var(--text-faint)}
-table.data td.fair-low{background:var(--amber-tint-2);font-weight:700;color:var(--amber);box-shadow:inset 3px 0 0 var(--amber-strong)}
-table.data td.fair-next{background:var(--amber-tint);color:var(--amber)}
+/* FEATURE: Heatmap — %-Zellen bekommen einen gedämpften Hintergrund (inline gesetzt);
+   Text bleibt bewusst dunkel (kein Weiß auf Gelb) */
+table.data td.heat{color:var(--text);font-size:var(--fs-sm)}
 table.data td.not-eligible{color:var(--border-strong)}
 .legend{display:flex;gap:var(--sp-4);font-size:var(--fs-xs);color:var(--text-muted);margin-top:var(--sp-3);align-items:center;flex-wrap:wrap}
 .legend .swatch{display:inline-block;width:14px;height:14px;border-radius:3px;vertical-align:-2px;margin-right:5px;border:1px solid var(--border)}
@@ -188,25 +193,32 @@ fieldset{border:1px solid var(--border);border-radius:var(--radius);margin:0 0 v
 legend{font-size:var(--fs-sm);font-weight:600;padding:0 var(--sp-2);color:var(--text)}
 .muted{color:var(--text-muted)}
 .mono{font-family:var(--mono)}
-/* ===================== Bericht (Druck/PDF) ===================== */
+/* ===================== FEATURE: Datenprüfung ===================== */
+.nav-badge{display:inline-flex;align-items:center;justify-content:center;min-width:18px;height:18px;padding:0 5px;margin-left:8px;border-radius:999px;font-size:.6875rem;font-weight:600;background:var(--amber-tint-2);color:var(--amber);vertical-align:1px}
+.nav-badge.is-err{background:var(--rk-red-tint);color:var(--rk-red-darker)}
+.check-list{list-style:none;margin:0;padding:0;font-size:var(--fs-sm)}
+.check-list li{display:flex;gap:var(--sp-2);align-items:baseline;padding:6px 0;border-bottom:1px solid var(--border)}
+.check-list li:last-child{border-bottom:none}
+.check-list .chip{flex:none}
+/* ===================== FEATURE: Bericht (Druck/PDF) =====================
+   A4 quer, kompakt (1 Zeile/Person), Heatmap in voller Skala. */
 #reportView{display:none}
+@page{size:A4 landscape;margin:10mm}
 @media print{
   body.print-report{display:block;height:auto;overflow:visible;background:#fff;min-width:0}
   body.print-report .app-layout{display:none!important}
   body.print-report #reportView{display:block}
 }
-#reportView{font-family:var(--font);color:#000;padding:0}
-#reportView h1{font-size:16pt;margin:0}
-#reportView .report-sub{color:#444;font-size:9pt;margin:2pt 0 10pt}
-#reportView h2{font-size:12pt;margin:12pt 0 4pt}
-#reportView .report-stats{display:flex;gap:16pt;flex-wrap:wrap;font-size:9pt;margin:4pt 0 6pt}
-#reportView .report-stats b{font-size:11pt}
-#reportView table{border-collapse:collapse;width:100%;font-size:8pt;page-break-inside:auto}
-#reportView th,#reportView td{border:1px solid #999;padding:2pt 4pt;text-align:left;vertical-align:top}
-#reportView th{background:#eee}
+#reportView{font-family:var(--font);color:#000;padding:0;print-color-adjust:exact;-webkit-print-color-adjust:exact}
+#reportView h1{font-size:14pt;margin:0 0 1pt}
+#reportView .report-sub{color:#444;font-size:9pt;margin:0 0 6pt}
+#reportView table{border-collapse:collapse;width:100%;font-size:9pt;page-break-inside:auto}
+#reportView thead{display:table-header-group}
+#reportView tr{page-break-inside:avoid}
+#reportView th,#reportView td{border:1px solid #999;padding:1pt 3pt;text-align:left;vertical-align:middle;white-space:nowrap}
+#reportView th{background:#eee;font-size:8pt}
 #reportView td.num,#reportView th.num{text-align:right;font-variant-numeric:tabular-nums}
-#reportView .report-dran{display:flex;gap:16pt;flex-wrap:wrap;font-size:9pt}
-#reportView .report-dran div{min-width:160px}
+#reportView td.heat{color:#000}
 </style>
 </head>
 <body>
@@ -219,7 +231,7 @@ legend{font-size:var(--fs-sm);font-weight:600;padding:0 var(--sp-2);color:var(--
     <button data-view="abende">Abende</button>
     <button data-view="personen">Personen</button>
     <button data-view="kategorien">Kategorien</button>
-    <button data-view="datei">Datei &amp; Excel</button>
+    <button data-view="datei">Datei &amp; Excel<span class="nav-badge" id="checkBadge" hidden></span></button>
   </nav>
   <div class="sidebar-tools">
     <button class="btn btn-sm" id="btnReport" title="Aufgeräumte Druckansicht des aktuellen Stands (über den Browser-Druck auch als PDF speicherbar)">Bericht</button>
@@ -235,9 +247,8 @@ legend{font-size:var(--fs-sm);font-weight:600;padding:0 var(--sp-2);color:var(--
 
 <!-- ================= Dashboard ================= -->
 <section class="view is-active" id="view-dashboard">
-  <!-- FEATURE: Wer-ist-dran-Karten (ersetzt die frühere DF-Balance-Karte) -->
+  <!-- FEATURE: Wer-ist-dran-Karten -->
   <div class="dran-grid" id="dranCards"></div>
-  <div class="stat-grid" id="dashSummary"></div>
   <div class="card">
     <div class="card-title"><h2>Personen-Übersicht</h2></div>
     <div class="toolbar">
@@ -246,19 +257,16 @@ legend{font-size:var(--fs-sm);font-weight:600;padding:0 var(--sp-2);color:var(--
         ×
         <select id="dashFilterKat"><option value="">– Kategorie –</option></select>
       </label>
-      <label><input type="checkbox" id="dashShowInactive"> Ausgetretene anzeigen</label>
+      <span class="hint" id="dashFilterHint"></span>
     </div>
     <div class="table-wrap"><table class="data" id="dashTable"><thead></thead><tbody></tbody></table></div>
     <div class="legend">
-      <span><span class="swatch" style="background:var(--amber-tint-2);box-shadow:inset 3px 0 0 var(--amber-strong)"></span>niedrigster Anteil unter den Berechtigten („dran“)</span>
-      <span><span class="swatch" style="background:var(--amber-tint)"></span>zweitniedrigster Anteil</span>
-      <span><span class="swatch" style="background:var(--surface)"></span>%-Werte = Anteil an Diensten (Summe kann über 100 % liegen)</span>
+      <!-- FEATURE: Heatmap-Legende -->
+      <span><span class="swatch" style="background:var(--heat-low)"></span>0 %</span>
+      <span><span class="swatch" style="background:var(--heat-mid)"></span>50 %</span>
+      <span><span class="swatch" style="background:var(--heat-high)"></span>100 %</span>
+      <span>%-Werte = Anteil an Diensten (Summe kann über 100 % liegen); Teil-Dienste zählen mit ihrem Faktor</span>
     </div>
-  </div>
-  <!-- FEATURE: Gast-Quote -->
-  <div class="card" id="gastCard" hidden>
-    <div class="card-title"><h3>Gäste</h3></div>
-    <div id="gastCardBody"></div>
   </div>
 </section>
 
@@ -280,6 +288,8 @@ legend{font-size:var(--fs-sm);font-weight:600;padding:0 var(--sp-2);color:var(--
 <section class="view" id="view-abende">
   <div class="card">
     <div class="card-title"><h2>Erfasste Abende</h2></div>
+    <!-- FEATURE: Gast-Quote (kompakter Kopfbereich) -->
+    <div id="gastInfo"></div>
     <div class="table-wrap"><table class="data" id="eveningsTable"><thead></thead><tbody></tbody></table></div>
   </div>
   <div id="eveningDetail"></div>
@@ -293,6 +303,8 @@ legend{font-size:var(--fs-sm);font-weight:600;padding:0 var(--sp-2);color:var(--
     </div>
     <div class="toolbar">
       <label><input type="checkbox" id="personsShowInactive"> Ausgetretene anzeigen</label>
+      <!-- FEATURE: Mehrfachbearbeitung -->
+      <span id="bulkBar"></span>
     </div>
     <div class="table-wrap"><table class="data" id="personsTable"><thead></thead><tbody></tbody></table></div>
   </div>
@@ -333,6 +345,14 @@ legend{font-size:var(--fs-sm);font-weight:600;padding:0 var(--sp-2);color:var(--
     <div class="card-title"><h3>Excel-Export</h3></div>
     <p class="hint">Exportiert den aktuellen Stand als .xlsx (Übersicht + Rohdaten) für Backup oder Weitergabe.</p>
     <button class="btn" id="btnExcelExport">Excel exportieren</button>
+  </div>
+  <!-- FEATURE: Datenprüfung -->
+  <div class="card">
+    <div class="card-title"><h3>Datenprüfung</h3></div>
+    <p class="hint">Wird nach jedem Laden und jeder Änderung automatisch geprüft. Hinweise (gelb) können gewollte
+    Datenrealität sein — z. B. ein geteilter DF-Dienst; Fehler (rot) sollten korrigiert werden.
+    Es wird nichts automatisch geändert.</p>
+    <div id="checkPanel"></div>
   </div>
 </section>
 
@@ -383,13 +403,17 @@ function defaultCategories() {
 }
 
 function defaultData() {
-  return { version: 2, categories: defaultCategories(), gastListe: [], people: [], evenings: [] };
+  return { version: 3, categories: defaultCategories(), gastListe: [], people: [], evenings: [] };
 }
 
-/* ---------- Migration v1 → v2 (verlustfrei & tolerant) ----------
+/* ---------- Migration v1 → v3 (verlustfrei & tolerant) ----------
    Unbekannte Felder bleiben unangetastet; fehlende Felder bekommen Defaults.
    Liefert true, wenn etwas migriert wurde (→ Hinweis im UI, Persistieren beim
-   nächsten Speichern). Eine v2-Datei läuft unverändert durch. */
+   nächsten Speichern). Eine v3-Datei läuft unverändert durch.
+   v2 → v3 ist strukturell identisch (nur Versionssprung): die partials-Map ist
+   ab v3 eine Faktor-Map — ein Faktor f ∈ (0, 1] je Person und Abend wirkt
+   einheitlich auf Anwesenheit, Dienste-Zählung und jede Kategorie des Abends
+   (siehe computeStats). Bestehende Werte behalten ihre Bedeutung. */
 function migratePersonV2(p) {
   let changed = false;
   if (p.fahrlizenz === undefined && p.stufe === undefined) {
@@ -447,8 +471,8 @@ function migrateEveningV2(ev) {
 }
 
 function migrateData(raw) {
-  let migrated = (raw.version || 1) < 2;
-  raw.version = 2;
+  let migrated = (raw.version || 1) < 3;
+  raw.version = 3;
   if (!Array.isArray(raw.gastListe)) raw.gastListe = [];
   for (const p of (raw.people || [])) migrated = migratePersonV2(p) || migrated;
   for (const c of (raw.categories || [])) migrated = migrateCategoryV2(c) || migrated;
@@ -645,6 +669,37 @@ function codeToCategories(rawCode, categories) {
 const TOUR_CODE_RE = /^[A-ZÄÖÜ][A-ZÄÖÜ0-9*\/.\-]{0,11}$/;
 const CREW_COLS = ['Fahrer', 'Transportführer', '2. Trspf./Praktikant'];
 
+/* ===== FEATURE: Teil-Dienst-Faktor — Zeiterkennung =====
+   Eigene Zeitangabe bei einem Namen (z. B. „Gudrun Huber 22:00 - 06:00“)
+   → Faktor = Personendauer ÷ Tourdauer, gerundet auf 1 Nachkommastelle. */
+const TIME_RANGE_RE = /(\d{1,2})[:.](\d{2})\s*[-–—]\s*(\d{1,2})[:.](\d{2})/;
+const SINGLE_TIME_RE = /(\d{1,2}):(\d{2})\b/g;
+
+function parseTimeRange(text) {
+  const m = String(text == null ? '' : text).match(TIME_RANGE_RE);
+  if (!m) return null;
+  const von = (+m[1]) * 60 + (+m[2]), bis = (+m[3]) * 60 + (+m[4]);
+  if (+m[1] > 23 || +m[3] > 23 || +m[2] > 59 || +m[4] > 59) return null;
+  return { von, bis, text: m[1].padStart(2, '0') + ':' + m[2] + '–' + m[3].padStart(2, '0') + ':' + m[4] };
+}
+/* Dauer in Minuten; Über-Mitternacht: Ende ≤ Beginn ⇒ +24 h */
+function spanMinutes(zeit) {
+  let d = zeit.bis - zeit.von;
+  if (d <= 0) d += 24 * 60;
+  return d;
+}
+/* Faktor = Personendauer ÷ Tourdauer, auf 1 Nachkommastelle, geklemmt auf (0, 1].
+   Referenzfall: 22:00–06:00 auf einer 18:30–06:00-Tour = 480/690 → 0,7 */
+function zeitFaktor(personZeit, tourZeit) {
+  if (!personZeit || !tourZeit) return null;
+  const td = spanMinutes(tourZeit);
+  if (!td) return null;
+  let f = Math.round((spanMinutes(personZeit) / td) * 10) / 10;
+  if (f > 1) f = 1;
+  if (f <= 0) f = 0.1;
+  return f;
+}
+
 function cleanCellName(s) {
   let t = normSpace(String(s == null ? '' : s).replace(/[ℹ⚠✓✔️*]/g, ''));
   if (!t) return null;
@@ -683,10 +738,20 @@ function parsePlan(text, categories) {
 
   const tours = [];
   for (const b of blocks) {
-    // Crew steht in der letzten nicht-leeren Zeile des Blocks
+    // Crew steht in der letzten nicht-leeren Zeile des Blocks. Beginnt die letzte
+    // Zeile mit einer Zeitspanne, ist es der umgebrochene Rest derselben Zelle
+    // (z. B. „Gudrun Huber␊22:00 - 06:00“) → mit der Zeile darüber zusammenfügen.
+    const nonEmpty = [];
+    for (let i = 0; i < b.lines.length; i++) {
+      if (normSpace(b.lines[i])) nonEmpty.push(b.lines[i]);
+    }
     let crewLine = '';
-    for (let i = b.lines.length - 1; i >= 0; i--) {
-      if (normSpace(b.lines[i])) { crewLine = b.lines[i]; break; }
+    while (nonEmpty.length) {
+      const last = nonEmpty.pop();
+      if (crewLine === '') crewLine = last;
+      else crewLine = last.replace(/\s+$/, '') + ' ' + crewLine.replace(/^[\s]+/, '');
+      const fc = crewLine.split('\t').map(c => normSpace(c)).find(Boolean) || '';
+      if (!TIME_RANGE_RE.test(fc.slice(0, 16)) || !nonEmpty.length) break;
     }
     let cc = crewLine.split('\t').map(c => normSpace(c));
     if (cc.length >= 4) {
@@ -697,15 +762,31 @@ function parsePlan(text, categories) {
     while (cc.length < 3) cc.push('');
     cc = cc.slice(0, 3);
 
+    /* Tour-Zeiten aus den Zeilen über der Crew (erste zwei Uhrzeiten = Beginn/Ende) */
+    const tourTimes = [];
+    for (const line of b.lines) {
+      if (line === crewLine) continue;
+      let m;
+      SINGLE_TIME_RE.lastIndex = 0;
+      while ((m = SINGLE_TIME_RE.exec(line)) && tourTimes.length < 2) {
+        if (+m[1] <= 23 && +m[2] <= 59) tourTimes.push((+m[1]) * 60 + (+m[2]));
+      }
+      if (tourTimes.length >= 2) break;
+    }
+    const tourZeit = tourTimes.length >= 2 ? { von: tourTimes[0], bis: tourTimes[1] } : null;
+
     const res = codeToCategories(b.code, categories);
     const crew = [];
     for (let i = 0; i < 3; i++) {
-      const name = cleanCellName(cc[i]);
+      /* eigene Zeitangabe beim Namen → aus der Zelle lösen und Faktor berechnen */
+      const zeit = parseTimeRange(cc[i]);
+      const cellText = zeit ? cc[i].replace(TIME_RANGE_RE, ' ') : cc[i];
+      const name = cleanCellName(cellText);
       /* rolle aus der Spaltenposition (fahrer/tf/p2) — Zusatzinfo, ändert nichts am Zählen.
          Auch auf ÄBD/ZBV-Zeilen wird wie gelesen gespeichert (keine Validierung). */
-      if (name) crew.push({ role: CREW_COLS[i], rolle: ROLLE_KEYS[i], name });
+      if (name) crew.push({ role: CREW_COLS[i], rolle: ROLLE_KEYS[i], name, zeit, faktor: zeitFaktor(zeit, tourZeit) });
     }
-    tours.push({ code: normSpace(b.code), catIds: res.catIds, unknownParts: res.unknownParts, crew });
+    tours.push({ code: normSpace(b.code), catIds: res.catIds, unknownParts: res.unknownParts, crew, zeit: tourZeit });
   }
   return { date, tours, hasTours: tours.length > 0 };
 }
@@ -722,8 +803,23 @@ function personAppearsAt(ev, pid) {
   return hasCat || hasPartial;
 }
 
+/* ===== FEATURE: Teil-Dienst-Faktor (Schema v3) ===== */
+/* Faktor einer Person an einem Abend: partials-Wert oder 1 (kein Eintrag).
+   Er wirkt einheitlich auf Anwesenheit, Dienste-Zählung und jede Kategorie. */
+function evFaktor(ev, pid) {
+  const v = ev.partials && ev.partials[pid];
+  return (v === undefined || v === null) ? 1 : v;
+}
+/* Zahl im de-AT-Format: Komma, maximal 1 Nachkommastelle, glatt ohne „,0“ */
+function fmtZahl(x) {
+  if (x === null || x === undefined) return '–';
+  const r = Math.round(x * 10) / 10;
+  return Number.isInteger(r) ? String(r) : String(r).replace('.', ',');
+}
+
 /* Statistik je Person: dienste, catCounts, catPct, expected, presenceSum, presencePct,
-   lastCat (letztes Datum je Kategorie). result.dates = sortierte Abend-Daten. */
+   lastCat (letztes Datum je Kategorie). result.dates = sortierte Abend-Daten.
+   Ab v3 zählt jeder Dienst mit seinem Faktor (Teil-Dienste als Bruchwerte). */
 function computeStats(data) {
   const evenings = sortedEvenings(data);
   const catIds = (data.categories || []).map(c => c.id);
@@ -751,9 +847,10 @@ function computeStats(data) {
       const a = assignmentCats(ev, p.id);
       const hasCat = a.length > 0;
       if (hasCat) {
-        s.dienste++;
+        const f = evFaktor(ev, p.id);
+        s.dienste += f;
         for (const cid of a) {
-          if (s.catCounts[cid] !== undefined) s.catCounts[cid]++;
+          if (s.catCounts[cid] !== undefined) s.catCounts[cid] += f;
           s.lastCat[cid] = ev.date; // Abende sind aufsteigend sortiert
         }
       }
@@ -773,8 +870,9 @@ function computeStats(data) {
 
   for (const ev of evenings) {
     for (const pid of Object.keys(ev.assignments || {})) {
+      const f = evFaktor(ev, pid);
       for (const cid of assignmentCats(ev, pid)) {
-        if (result.catTotals[cid] !== undefined) result.catTotals[cid]++;
+        if (result.catTotals[cid] !== undefined) result.catTotals[cid] += f;
       }
     }
   }
@@ -835,30 +933,107 @@ function rankDran(candidates, stats, catId) {
     (a.p.nachname + ' ' + a.p.vorname).localeCompare(b.p.nachname + ' ' + b.p.vorname, 'de'));
 }
 
-/* Fairness: je Fairness-Kategorie die berechtigten aktiven Personen mit dem niedrigsten
-   (Stufe 'low') bzw. zweitniedrigsten ('next') Anteil markieren.
-   Personen ohne Dienste zählen mit Anteil 0 (sie sind am ehesten „dran“).
-   Optional auf eine Teilmenge (gefilterte Ansicht) eingeschränkt. */
-function fairnessMarks(data, stats, peopleSubset) {
-  const marks = {}; // pid -> { catId: 'low'|'next' }
-  const pool = peopleSubset || data.people;
-  for (const cat of data.categories) {
-    if (!cat.fairness) continue;
-    const eligible = pool.filter(p => p.status !== 'ausgetreten' && isEligible(p, cat));
-    if (eligible.length < 2) continue;
-    const vals = eligible.map(p => {
-      const s = stats.perPerson[p.id];
-      const pct = s && s.catPct[cat.id] !== null ? s.catPct[cat.id] : 0;
-      return { pid: p.id, pct };
-    });
-    const distinct = [...new Set(vals.map(v => v.pct))].sort((a, b) => a - b);
-    const low = distinct[0], next = distinct.length > 1 ? distinct[1] : undefined;
-    for (const v of vals) {
-      if (v.pct === low) { (marks[v.pid] = marks[v.pid] || {})[cat.id] = 'low'; }
-      else if (next !== undefined && v.pct === next) { (marks[v.pid] = marks[v.pid] || {})[cat.id] = 'next'; }
+/* ===== FEATURE: TF × RTW ohne B3-Fahrer =====
+   TF-Kandidaten einer Kategorie. Bei RTW werden B3-Fahrer ausgeschlossen —
+   sie werden als Fahrer am RTW gebraucht (Fußnote im UI nennt die Anzahl).
+   Alle anderen Kategorien (z. B. KTW) zeigen weiterhin alle TF-Geeigneten. */
+function tfKandidaten(cat, people) {
+  const alle = people.filter(p => darfTf(p, cat));
+  if (cat.id !== 'RTW') return { kandidaten: alle, ausgeblendet: 0 };
+  const kandidaten = alle.filter(p => p.fahrlizenz !== 'B3');
+  return { kandidaten, ausgeblendet: alle.length - kandidaten.length };
+}
+
+/* ===== FEATURE: Heatmap (Farbskala der alten Excel) =====
+   Feste Anker 0 % (Rot #F8696B) / 50 % (Gelb #FFEB84) / 100 % (Grün #63BE7B),
+   linear interpoliert — bewusst nicht Excels Median-Anker. */
+const HEAT_ANCHORS = [[0xF8, 0x69, 0x6B], [0xFF, 0xEB, 0x84], [0x63, 0xBE, 0x7B]];
+function heatRGB(pct) {
+  const x = Math.max(0, Math.min(1, pct));
+  const [a, b, t] = x <= 0.5
+    ? [HEAT_ANCHORS[0], HEAT_ANCHORS[1], x / 0.5]
+    : [HEAT_ANCHORS[1], HEAT_ANCHORS[2], (x - 0.5) / 0.5];
+  return a.map((v, i) => Math.round(v + (b[i] - v) * t));
+}
+/* CSS-Farbe; mix = Weiß-Anteil zur Dämpfung (Dashboard gedämpft, Bericht volle Skala).
+   Dunkler Text bleibt auf allen Stufen lesbar. */
+function heatCss(pct, mix) {
+  if (pct === null || pct === undefined) return '';
+  const rgb = heatRGB(pct).map(v => Math.round(v + (255 - v) * (mix || 0)));
+  return 'rgb(' + rgb[0] + ',' + rgb[1] + ',' + rgb[2] + ')';
+}
+
+/* ===== FEATURE: Datenprüfung (Konsistenz-Panel) =====
+   Macht Auffälligkeiten sichtbar, korrigiert aber nie automatisch.
+   Hinweise (gelb) können Datenrealität sein — z. B. ist ein geteilter
+   DF-Dienst (2 DF an einem Abend) im Altbestand 5× belegt. */
+function checkData(data) {
+  const findings = []; // {typ:'hinweis'|'fehler', code, text, evDate?, personId?}
+  const stats = computeStats(data);
+  const EPS = 1e-9;
+
+  /* doppelte Abend-Daten (fehlende/ungültige fängt validateData beim Laden) */
+  const seen = new Set();
+  for (const ev of (data.evenings || [])) {
+    if (!ev.date) { findings.push({ typ: 'fehler', code: 'datum-fehlt', text: 'Ein Abend hat kein Datum.' }); continue; }
+    if (seen.has(ev.date)) findings.push({ typ: 'fehler', code: 'datum-doppelt', evDate: ev.date, text: 'Zwei Abende mit demselben Datum ' + fmtDateDE(ev.date) + '.' });
+    seen.add(ev.date);
+  }
+
+  const nameOf = pid => { const p = data.people.find(x => x.id === pid); return p ? p.nachname + ' ' + p.vorname : pid; };
+  for (const ev of sortedEvenings(data)) {
+    const pids = Object.keys(ev.assignments || {});
+    /* Hinweis: mehr als 1 DF-Eintrag (kann gewollter geteilter Dienst sein) */
+    const dfPids = pids.filter(pid => assignmentCats(ev, pid).includes('DF'));
+    if (dfPids.length > 1) {
+      findings.push({ typ: 'hinweis', code: 'df-mehrfach', evDate: ev.date,
+        text: fmtDateDE(ev.date) + ': ' + dfPids.length + ' DF-Einträge (' + dfPids.map(nameOf).join(', ') + ') — kann ein gewollt geteilter Dienst sein.' });
+    }
+    /* Hinweis: ÄBD/ZBV-Kombi (eine Person zählt in beiden Kategorien) */
+    const kombi = pids.filter(pid => { const c = assignmentCats(ev, pid); return c.includes('ABD') && c.includes('ZBV'); });
+    if (kombi.length) {
+      findings.push({ typ: 'hinweis', code: 'abd-zbv', evDate: ev.date,
+        text: fmtDateDE(ev.date) + ': ÄBD/ZBV-Kombi (' + kombi.map(nameOf).join(', ') + ') — der Dienst zählt in beiden Kategorien, dadurch sind Prozent-Summen über 100 % möglich.' });
+    }
+    /* Fehler: Faktor außerhalb (0, 1] bzw. Anwesenheitswert außerhalb [0, 1] */
+    for (const pid of Object.keys(ev.partials || {})) {
+      const v = ev.partials[pid];
+      const hatDienst = assignmentCats(ev, pid).length > 0;
+      if (hatDienst) {
+        if (!(typeof v === 'number' && v > 0 && v <= 1)) {
+          findings.push({ typ: 'fehler', code: 'faktor', evDate: ev.date, personId: pid,
+            text: fmtDateDE(ev.date) + ': Faktor ' + JSON.stringify(v) + ' bei ' + nameOf(pid) + ' liegt außerhalb (0, 1].' });
+        }
+      } else if (!(typeof v === 'number' && v >= 0 && v <= 1)) {
+        findings.push({ typ: 'fehler', code: 'anwesenheitswert', evDate: ev.date, personId: pid,
+          text: fmtDateDE(ev.date) + ': Anwesenheitswert ' + JSON.stringify(v) + ' bei ' + nameOf(pid) + ' liegt außerhalb [0, 1].' });
+      }
     }
   }
-  return marks;
+
+  /* Hinweis: Personen mit „Stufe fehlt“ (gesammelt) */
+  const ohneStufe = (data.people || []).filter(p => p.status !== 'ausgetreten' && p.stufe == null);
+  if (ohneStufe.length) {
+    findings.push({ typ: 'hinweis', code: 'stufe-fehlt',
+      text: ohneStufe.length + (ohneStufe.length === 1 ? ' Person' : ' Personen') + ' ohne Stufe (' + ohneStufe.map(p => p.nachname + ' ' + p.vorname).join(', ') + ') — bis zur Nachpflege nicht TF-geeignet.' });
+  }
+
+  /* Fehler je Person: einzelne Kategorie über den Diensten, Anwesenheit > 100 % */
+  for (const p of (data.people || [])) {
+    const s = stats.perPerson[p.id];
+    if (!s) continue;
+    for (const cid of Object.keys(s.catCounts)) {
+      if (s.catCounts[cid] > s.dienste + EPS) {
+        findings.push({ typ: 'fehler', code: 'kat-ueber-dienste', personId: p.id,
+          text: p.nachname + ' ' + p.vorname + ': ' + cid + '-Anzahl (' + fmtZahl(s.catCounts[cid]) + ') ist größer als die Dienste (' + fmtZahl(s.dienste) + ').' });
+      }
+    }
+    if (s.presencePct !== null && s.presencePct > 1 + EPS) {
+      findings.push({ typ: 'fehler', code: 'anwesenheit-ueber-100', personId: p.id,
+        text: p.nachname + ' ' + p.vorname + ': Anwesenheit über 100 % (' + fmtPct(s.presencePct) + ').' });
+    }
+  }
+  return findings;
 }
 
 /* ---------- Excel-Import (arbeitet auf Zellen-Arrays, SheetJS-unabhängig) ---------- */
@@ -1048,6 +1223,40 @@ function validateData(raw) {
   return raw;
 }
 
+/* ===== FEATURE: Mehrfachbearbeitung (Kern) =====
+   changes: {fahrlizenz?, stufe?, status?, df? (bool)} — nur gesetzte Felder
+   werden angewendet, alles andere bleibt unangetastet. Die Regel „Praktikant
+   erzwingt Fahrlizenz keine“ gilt auch hier (lizenzEntfernt zählt die Fälle). */
+function applyBulkEdit(people, ids, changes) {
+  let count = 0, lizenzEntfernt = 0;
+  for (const id of ids) {
+    const p = people.find(x => x.id === id);
+    if (!p) continue;
+    count++;
+    if (changes.fahrlizenz !== undefined) p.fahrlizenz = changes.fahrlizenz;
+    if (changes.stufe !== undefined) { p.stufe = changes.stufe; delete p.qualifikationAlt; }
+    if (changes.status !== undefined) p.status = changes.status;
+    if (changes.df !== undefined) p.df = !!changes.df;
+    if (p.stufe === 'Praktikant' && p.fahrlizenz !== 'keine') { p.fahrlizenz = 'keine'; lizenzEntfernt++; }
+  }
+  return { count, lizenzEntfernt };
+}
+
+/* ===== FEATURE: Bericht (Kern) =====
+   Zeilen der kompakten Druck-Tabelle: eine Zeile pro aktiver Person (nach
+   Nachname), ohne „Zuletzt“-Spalten und ohne Dran-Block. */
+function reportRows(data, stats) {
+  const cats = data.categories;
+  return data.people.filter(p => p.status !== 'ausgetreten')
+    .slice().sort((a, b) => (a.nachname + a.vorname).localeCompare(b.nachname + b.vorname, 'de'))
+    .map(p => {
+      const s = stats.perPerson[p.id];
+      const row = { name: p.nachname + ' ' + p.vorname, lizenz: p.fahrlizenz, stufe: p.stufe || 'fehlt', dienste: s.dienste, presencePct: s.presencePct, cats: [] };
+      for (const c of cats) row.cats.push({ id: c.id, count: s.catCounts[c.id], pct: s.catPct[c.id] });
+      return row;
+    });
+}
+
 function fmtPct(v) { return v === null || v === undefined ? '–' : Math.round(v * 100) + ' %'; }
 function fmtDateDE(iso) {
   if (!iso) return '–';
@@ -1110,7 +1319,7 @@ function applyLoadedData(raw) {
   if (loadWasMigrated) {
     const banner = document.createElement('div');
     banner.className = 'notice notice-ok';
-    banner.innerHTML = 'Datei wurde auf Version 2 aktualisiert (Fahrlizenz und Stufe statt einem Qualifikationsfeld). ' +
+    banner.innerHTML = 'Datei wurde auf Version 3 aktualisiert. ' +
       'Die Aktualisierung wird beim nächsten Speichern in die Datei übernommen. ' +
       '<button class="btn btn-sm" onclick="this.parentElement.remove()">OK</button>';
     $('.app-main').prepend(banner);
@@ -1453,22 +1662,22 @@ document.addEventListener('click', e => {
 });
 
 /* ===== FEATURE: Wer-ist-dran-Karten ===== */
+/* Nur Nicht-Flag-Fairness-Kategorien (RTW, ÄBD) — die frühere DF-Karte ist
+   entfernt, die DF-Spalten im Dashboard bleiben. */
 const dranExpand = new Set(); // 'RTW|fahrer' → aufgeklappt
 function renderDranCards(stats) {
   const wrap = $('#dranCards');
   const aktive = data.people.filter(p => p.status !== 'ausgetreten');
   let html = '';
   for (const cat of data.categories) {
-    if (!cat.fairness) continue;
-    /* Spalten je Karte: Flag-Kategorie (DF) eine, sonst Fahrer und – falls es
-       auf der Kategorie TF gibt – TF. Personen mit stufe=null fehlen in
-       TF-Spalten automatisch (darfTf), in Fahrer-Spalten normal. */
+    if (!cat.fairness || cat.eligibleFlag) continue;
     const cols = [];
-    if (cat.eligibleFlag) {
-      cols.push({ key: 'flag', titel: 'dran', cands: aktive.filter(p => !!p[cat.eligibleFlag]) });
-    } else {
-      if ((cat.eligibleFahrer || []).length) cols.push({ key: 'fahrer', titel: 'als Fahrer dran', cands: aktive.filter(p => darfFahren(p, cat)) });
-      if ((cat.eligibleTf || []).length) cols.push({ key: 'tf', titel: 'als TF dran', cands: aktive.filter(p => darfTf(p, cat)) });
+    if ((cat.eligibleFahrer || []).length) cols.push({ key: 'fahrer', titel: 'als Fahrer dran', cands: aktive.filter(p => darfFahren(p, cat)), fussnote: '' });
+    if ((cat.eligibleTf || []).length) {
+      /* FEATURE: TF × RTW — B3-Fahrer aus der TF-Spalte ausblenden */
+      const tk = tfKandidaten(cat, aktive);
+      cols.push({ key: 'tf', titel: 'als TF dran', cands: tk.kandidaten,
+        fussnote: tk.ausgeblendet ? tk.ausgeblendet + ' B3-Fahrer ausgeblendet (werden als Fahrer am ' + cat.label + ' gebraucht)' : '' });
     }
     if (!cols.length) continue;
     html += `<div class="dran-card"><h3>Wer ist dran? — ${esc(cat.label)}</h3><div class="dran-cols">`;
@@ -1476,19 +1685,20 @@ function renderDranCards(stats) {
       const expandKey = cat.id + '|' + col.key;
       const ranked = rankDran(col.cands, stats, cat.id);
       const shown = dranExpand.has(expandKey) ? ranked : ranked.slice(0, 3);
-      html += `<div class="dran-col">` + (cols.length > 1 || col.key !== 'flag' ? `<h4>${esc(col.titel)}</h4>` : '');
+      html += `<div class="dran-col"><h4>${esc(col.titel)}</h4>`;
       html += '<ol class="dran-list">' + shown.map(r =>
         `<li><span class="dran-name">${esc(r.p.nachname)} ${esc(r.p.vorname)}</span>` +
         (r.wenigDaten ? ' <span class="chip chip-warn" title="weniger als 5 erfasste Dienste — Reihung normal, aber dünne Datenbasis">wenig Daten</span>' : '') +
-        `<div class="dran-meta">${fmtPct(r.anteil)} · ${r.count}× ${esc(cat.label)} · zuletzt ${
+        `<div class="dran-meta">${fmtPct(r.anteil)} · ${fmtZahl(r.count)}× ${esc(cat.label)} · zuletzt ${
           r.last ? `<span title="${esc(fmtDateDE(r.last))}">${esc(fmtVorN(r.lastN))}</span>` : 'nie'
-        } · ${r.dienste} Dienste gesamt</div></li>`
+        } · ${fmtZahl(r.dienste)} Dienste gesamt</div></li>`
       ).join('') + '</ol>';
       if (ranked.length > 3) {
         html += `<button class="btn btn-sm dran-toggle" data-dran-toggle="${esc(expandKey)}">${
           dranExpand.has(expandKey) ? 'weniger anzeigen' : 'alle ' + ranked.length + ' anzeigen'}</button>`;
       }
       if (!ranked.length) html += '<p class="hint">keine Berechtigten</p>';
+      if (col.fussnote) html += `<p class="hint">${esc(col.fussnote)}</p>`;
       html += '</div>';
     }
     html += '</div></div>';
@@ -1501,39 +1711,12 @@ function renderDranCards(stats) {
   });
 }
 
-/* ===== FEATURE: Gast-Quote (Karte) ===== */
-function renderGastCard(gast) {
-  const card = $('#gastCard');
-  if (!gast.einsaetze) { card.hidden = true; return; }
-  card.hidden = false;
-  $('#gastCardBody').innerHTML =
-    `<p class="hint">${gast.einsaetze} Gast-Einsätze von ${gast.verschiedene} verschiedenen Gästen — ` +
-    `${fmtPct(gast.anteil)} aller Crew-Plätze. Häufige Gäste sind gute Kandidaten fürs Anwerben:</p>` +
-    '<ol style="margin:0;padding-left:1.4em;font-size:var(--fs-sm)">' +
-    gast.top.map(g => `<li>${esc(g.name)} <span class="muted">(${g.count} Einsätze)</span></li>`).join('') +
-    '</ol>';
-}
-
 function renderDashboard() {
   const stats = computeStats(data);
   const cats = data.categories;
   const fairCats = cats.filter(c => c.fairness);
-  const gast = computeGastStats(data);
 
   renderDranCards(stats);
-
-  /* Zusammenfassung */
-  const sum = $('#dashSummary');
-  const activeCount = data.people.filter(p => p.status !== 'ausgetreten').length;
-  sum.innerHTML =
-    '<div class="stat-box"><div class="stat-value">' + stats.evenings + '</div><div class="stat-label">erfasste Abende</div></div>' +
-    '<div class="stat-box"><div class="stat-value">' + activeCount + '</div><div class="stat-label">aktive Personen</div></div>' +
-    cats.map(c => '<div class="stat-box"><div class="stat-value">' + (stats.catTotals[c.id] || 0) + '</div><div class="stat-label">' + esc(c.label) + ' gesamt</div></div>').join('') +
-    /* FEATURE: Gast-Quote in der Zusammenfassung */
-    (gast.einsaetze ?
-      '<div class="stat-box"><div class="stat-value">' + gast.einsaetze + '</div><div class="stat-label">Gast-Einsätze (' + gast.verschiedene + ' Gäste)</div></div>' +
-      '<div class="stat-box"><div class="stat-value">' + fmtPct(gast.anteil) + '</div><div class="stat-label">Anteil an Crew-Plätzen</div></div>'
-      : '');
 
   /* Eignungs-Filter Rolle × Kategorie (Auswahl erhalten) */
   const rolleSel = $('#dashFilterRolle'), katSel = $('#dashFilterKat');
@@ -1541,17 +1724,22 @@ function renderDashboard() {
   katSel.innerHTML = '<option value="">– Kategorie –</option>' + cats.map(c => `<option value="${esc(c.id)}">${esc(c.label)}</option>`).join('');
   katSel.value = prevKat;
 
-  let people = visiblePeople($('#dashShowInactive').checked);
+  /* Dashboard zeigt immer nur Aktive */
+  let people = visiblePeople(false);
   const rolle = rolleSel.value, katId = katSel.value;
   const filterKat = cats.find(c => c.id === katId) || null;
   const darfRolle = (p, c) => rolle === 'tf' ? darfTf(p, c) : darfFahren(p, c);
-  if (filterKat && rolle) people = people.filter(p => darfRolle(p, filterKat));
+  let filterHint = '';
+  if (filterKat && rolle === 'tf') {
+    /* FEATURE: TF × RTW — B3-Fahrer ausgeblendet (Fußnote) */
+    const tk = tfKandidaten(filterKat, people);
+    people = tk.kandidaten;
+    if (tk.ausgeblendet) filterHint = tk.ausgeblendet + ' B3-Fahrer ausgeblendet (werden als Fahrer am ' + filterKat.label + ' gebraucht)';
+  }
+  else if (filterKat && rolle) people = people.filter(p => darfRolle(p, filterKat));
   else if (filterKat) people = people.filter(p => isEligible(p, filterKat));
   else if (rolle) people = people.filter(p => cats.some(c => !c.eligibleFlag && darfRolle(p, c)));
-
-  /* Fairness innerhalb der aktuell gefilterten Menge; ohne Filter über alle */
-  const filtered = !!(rolle || filterKat);
-  const marks = fairnessMarks(data, stats, filtered ? people : undefined);
+  $('#dashFilterHint').textContent = filterHint;
 
   /* Kopf */
   const cols = [
@@ -1600,20 +1788,23 @@ function renderDashboard() {
     return (va < vb ? -1 : va > vb ? 1 : 0) * dashSort.dir;
   });
 
+  /* FEATURE: Heatmap — gedämpfter Hintergrund-Tint auf allen %-Spalten (~38 % Intensität) */
+  const HEAT_MIX = 0.62;
+  const heatTd = pct => pct === null || pct === undefined ? '' : ` style="background:${heatCss(pct, HEAT_MIX)}"`;
+
   $('#dashTable tbody').innerHTML = rows.map(({ p, s, vals }) => {
-    const m = marks[p.id] || {};
-    let html = `<tr class="${p.status === 'ausgetreten' ? 'is-inactive' : ''}">`;
+    let html = '<tr>';
     html += `<td>${esc(p.nachname)}</td><td>${esc(p.vorname)}</td>`;
     html += `<td title="${esc(eignungText(p))}">${lizenzBadge(p)}</td>`;
     html += `<td title="${esc(eignungText(p))}">${stufeBadge(p)}${p.df ? ' <span class="chip chip-muted" title="DF-berechtigt">DF</span>' : ''}</td>`;
     html += `<td><span class="chip ${p.status === 'aktiv' ? 'chip-ok' : 'chip-muted'}">${esc(p.status)}</span></td>`;
-    html += `<td class="num">${s.dienste}</td><td class="num">${fmtPct(s.presencePct)}</td>`;
+    html += `<td class="num">${fmtZahl(s.dienste)}</td><td class="num heat"${heatTd(s.presencePct)}>${fmtPct(s.presencePct)}</td>`;
     for (const c of cats) {
       const eligible = isEligible(p, c);
-      const cls = !eligible ? 'not-eligible' : (c.fairness && m[c.id] === 'low' ? 'fair-low' : (c.fairness && m[c.id] === 'next' ? 'fair-next' : ''));
-      const title = !eligible ? 'nicht ' + c.label + '-berechtigt' : (m[c.id] === 'low' ? 'niedrigster Anteil – „dran“' : '');
-      html += `<td class="num cat-cnt ${cls}" title="${esc(title)}">${vals['cnt_' + c.id]}</td>`;
-      html += `<td class="num cat-pct ${cls}" title="${esc(title)}">${fmtPct(vals['pct_' + c.id])}</td>`;
+      const cls = eligible ? '' : 'not-eligible';
+      const title = eligible ? '' : 'nicht ' + c.label + '-berechtigt';
+      html += `<td class="num cat-cnt ${cls}" title="${esc(title)}">${fmtZahl(vals['cnt_' + c.id])}</td>`;
+      html += `<td class="num cat-pct heat ${cls}" title="${esc(title)}"${heatTd(vals['pct_' + c.id])}>${fmtPct(vals['pct_' + c.id])}</td>`;
     }
     for (const c of fairCats) {
       const last = s.lastCat[c.id] || null;
@@ -1621,11 +1812,9 @@ function renderDashboard() {
     }
     return html + '</tr>';
   }).join('') || '<tr><td colspan="99" class="muted">Keine Personen erfasst.</td></tr>';
-
-  renderGastCard(gast);
 }
 
-['dashFilterRolle', 'dashFilterKat', 'dashShowInactive'].forEach(id => {
+['dashFilterRolle', 'dashFilterKat'].forEach(id => {
   document.getElementById(id).addEventListener('change', renderDashboard);
 });
 </script>
@@ -1766,14 +1955,16 @@ function renderPreview() {
     }
   }
 
-  /* Teil-Anwesenheit */
+  /* FEATURE: Teil-Dienst-Faktor je Person (erkannte Zeitangabe vorbefüllt) */
   const assignedPids = previewAssignedPids();
   if (assignedPids.length) {
-    html += '<h3 style="margin-top:var(--sp-4)">Anwesenheit</h3><p class="hint">Standard: anwesend = 1. Für Teil-Anwesenheit einen Bruch eintragen (z. B. 0,5).</p><div class="toolbar" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:var(--sp-2)">';
+    html += '<h3 style="margin-top:var(--sp-4)">Faktor</h3><p class="hint">Standard 1 = ganzer Dienst. Ein Teil-Dienst (z. B. später Beginn) zählt mit seinem Faktor in Anwesenheit, Dienste und Kategorien. Erkannte Zeitangaben sind vorbefüllt und manuell änderbar.</p><div class="toolbar" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:var(--sp-2)">';
     for (const pid of assignedPids) {
       const p = data.people.find(p => p.id === pid);
-      const v = preview.partials.has(pid) ? preview.partials.get(pid) : 1;
-      html += `<label>${esc(p ? personLabel(p) : pid)} <input type="number" min="0" max="1" step="0.05" style="width:5.5em" value="${v}" data-partial="${esc(pid)}"></label>`;
+      const det = previewDetectedZeit(pid);
+      const v = preview.partials.has(pid) ? preview.partials.get(pid) : (det ? det.faktor : 1);
+      const hinweis = det ? `<span class="chip chip-warn" title="eigene Zeitangabe im Plan">${esc(det.text)} erkannt → ${esc(fmtZahl(det.faktor))}</span>` : '';
+      html += `<label>${esc(p ? personLabel(p) : pid)} <input type="number" min="0.1" max="1" step="0.1" style="width:5.5em" value="${v}" data-partial="${esc(pid)}"> ${hinweis}</label>`;
     }
     html += '</div>';
   }
@@ -1842,10 +2033,22 @@ function renderPreview() {
   area.querySelectorAll('input[data-partial]').forEach(inp => {
     inp.onchange = () => {
       const v = parseFloat(inp.value);
-      if (!isNaN(v) && v >= 0 && v <= 1) preview.partials.set(inp.dataset.partial, v);
+      if (!isNaN(v) && v > 0 && v <= 1) preview.partials.set(inp.dataset.partial, Math.round(v * 10) / 10);
     };
   });
   $('#btnConfirmEvening').onclick = confirmEvening;
+}
+
+/* Erkannte Zeitangabe (und damit Faktor) einer zugeordneten Person aus dem Plan */
+function previewDetectedZeit(pid) {
+  for (const t of preview.tours) {
+    for (const c of t.crew) {
+      if (!c.zeit || c.faktor == null) continue;
+      const r = preview.nameRes.get(normKey(c.name));
+      if (r && r.action === 'person' && r.personId === pid) return { text: c.zeit.text, faktor: c.faktor };
+    }
+  }
+  return null;
 }
 
 function reResolveCodes() {
@@ -1922,8 +2125,11 @@ async function confirmEvening() {
       }
     }
   }
-  for (const [pid, v] of preview.partials) {
-    if (evening.assignments[pid] && v !== 1) evening.partials[pid] = v;
+  /* Faktor je Person: manuell gesetzter Wert vor erkannter Zeitangabe; nur ≠ 1 speichern */
+  for (const pid of Object.keys(evening.assignments)) {
+    const det = previewDetectedZeit(pid);
+    const v = preview.partials.has(pid) ? preview.partials.get(pid) : (det ? det.faktor : 1);
+    if (v !== 1) evening.partials[pid] = v;
   }
   if (Object.keys(evening.partials).length === 0) delete evening.partials;
   if (evening.gaeste.length === 0) delete evening.gaeste;
@@ -1950,7 +2156,19 @@ async function confirmEvening() {
 }
 
 /* ===================== Abende-Ansicht ===================== */
+/* FEATURE: Gast-Quote — kompakter Kopfbereich über der Abende-Liste */
+function renderGastInfo() {
+  const gast = computeGastStats(data);
+  const el = $('#gastInfo');
+  if (!gast.einsaetze) { el.innerHTML = ''; return; }
+  el.innerHTML = '<p class="hint" style="margin-bottom:var(--sp-3)"><strong>Gäste:</strong> ' +
+    gast.einsaetze + ' Einsätze von ' + gast.verschiedene + ' verschiedenen Gästen (' + fmtPct(gast.anteil) + ' aller Crew-Plätze). ' +
+    'Häufigste: ' + gast.top.map(g => esc(g.name) + ' (' + g.count + '×)').join(', ') +
+    ' — gute Kandidaten fürs Anwerben.</p>';
+}
+
 function renderEvenings() {
+  renderGastInfo();
   const evs = sortedEvenings(data).reverse();
   $('#eveningsTable thead').innerHTML = '<tr><th>Datum</th><th>Personen</th><th>Gäste</th><th>Kategorien</th><th></th></tr>';
   $('#eveningsTable tbody').innerHTML = evs.map(ev => {
@@ -1999,7 +2217,7 @@ function renderEveningDetail(date) {
     .map(p => `<option value="${esc(p.id)}">${esc(personLabel(p))}</option>`).join('');
   $('#eveningDetail').innerHTML = `<div class="card"><div class="card-title"><h3>Abend ${esc(fmtDateDE(date))} bearbeiten</h3>
     <button class="btn" id="btnCloseEvDetail">Schließen</button></div>
-    <div class="table-wrap"><table class="data"><thead><tr><th>Person</th><th>Kategorien</th><th>Anwesenheit (leer = automatisch)</th><th></th></tr></thead>
+    <div class="table-wrap"><table class="data"><thead><tr><th>Person</th><th>Kategorien</th><th>Faktor/Anwesenheit (leer = automatisch)</th><th></th></tr></thead>
     <tbody>${rows}</tbody></table></div>
     <div class="toolbar" style="margin-top:var(--sp-3)"><select id="evAddPerson"><option value="">– Person hinzufügen –</option>${addOpts}</select>
     <button class="btn btn-sm" id="btnEvAdd">Hinzufügen</button></div>
@@ -2041,19 +2259,88 @@ function renderEveningDetail(date) {
 }
 
 /* ===================== Personenverwaltung ===================== */
+/* FEATURE: Mehrfachbearbeitung — Auswahl bleibt über Re-Renderings erhalten */
+const bulkSelected = new Set();
+
+function renderBulkBar() {
+  const bar = $('#bulkBar');
+  const n = bulkSelected.size;
+  bar.innerHTML = n
+    ? `<strong>${n} ausgewählt</strong> <button class="btn btn-sm btn-primary" id="btnBulkEdit">Bearbeiten …</button> <button class="btn btn-sm" id="btnBulkClear">Auswahl aufheben</button>`
+    : '';
+  if (n) {
+    $('#btnBulkEdit').onclick = openBulkEditDialog;
+    $('#btnBulkClear').onclick = () => { bulkSelected.clear(); renderPersons(); };
+  }
+}
+
+async function openBulkEditDialog() {
+  const ids = [...bulkSelected].filter(id => data.people.some(p => p.id === id));
+  if (!ids.length) return;
+  const UNCH = '<option value="">— unverändert —</option>';
+  const ok = await showDialog(
+    `<h3>${ids.length} Personen bearbeiten</h3>
+    <p class="hint">Nur explizit gewählte Felder werden gesetzt; „— unverändert —“ lässt das Feld unangetastet.</p>
+    <div class="form-grid">
+      <label>Fahrlizenz</label><select id="beLizenz">${UNCH}${FAHRLIZENZ_LIST.map(l => `<option>${l}</option>`).join('')}</select>
+      <label>Stufe</label><select id="beStufe">${UNCH}${STUFE_LIST.map(s => `<option>${s}</option>`).join('')}</select>
+      <label>Status</label><select id="beStatus">${UNCH}<option>aktiv</option><option>ausgetreten</option></select>
+      <label>DF</label><select id="beDf">${UNCH}<option value="ja">ja</option><option value="nein">nein</option></select>
+    </div>`,
+    [{ label: 'Anwenden', value: true, primary: true }, { label: 'Abbrechen', value: false }]);
+  if (!ok) return;
+  const dlg = $('#appDialog');
+  const lizenz = dlg.querySelector('#beLizenz').value;
+  const stufe = dlg.querySelector('#beStufe').value;
+  const status = dlg.querySelector('#beStatus').value;
+  const df = dlg.querySelector('#beDf').value;
+  if (!lizenz && !stufe && !status && !df) { infoDialog('<p>Kein Feld gewählt — nichts geändert.</p>'); return; }
+
+  const changes = {};
+  if (lizenz) changes.fahrlizenz = lizenz;
+  if (stufe) changes.stufe = stufe;
+  if (status) changes.status = status;
+  if (df) changes.df = df === 'ja';
+  const res = applyBulkEdit(data.people, ids, changes);
+  const summary = [
+    lizenz && 'Fahrlizenz → ' + lizenz, stufe && 'Stufe → ' + stufe,
+    status && 'Status → ' + status, df && 'DF → ' + df
+  ].filter(Boolean).join(', ');
+  dataChanged();
+  infoDialog('<h3>Übernommen</h3><p>' + res.count + ' Personen: ' + esc(summary) + '.' +
+    (res.lizenzEntfernt ? '<br><strong>Hinweis:</strong> Bei ' + res.lizenzEntfernt + ' Person(en) wurde die Fahrlizenz auf „keine“ gesetzt (Praktikant hat keine Fahrlizenz).' : '') + '</p>');
+}
+
 function renderPersons() {
   const show = $('#personsShowInactive').checked;
   const people = visiblePeople(show).slice().sort((a, b) => (a.nachname + a.vorname).localeCompare(b.nachname + b.vorname));
-  $('#personsTable thead').innerHTML = '<tr><th>Nachname</th><th>Vorname</th><th>Lizenz</th><th>Stufe</th><th>Eignung</th><th>DF</th><th>Status</th><th>Austritt</th><th>Aliasse</th><th></th></tr>';
+  for (const id of [...bulkSelected]) if (!people.some(p => p.id === id)) bulkSelected.delete(id);
+  const allChecked = people.length > 0 && people.every(p => bulkSelected.has(p.id));
+  $('#personsTable thead').innerHTML = `<tr><th><input type="checkbox" id="bulkAll" title="alle Angezeigten auswählen" ${allChecked ? 'checked' : ''}></th><th>Nachname</th><th>Vorname</th><th>Lizenz</th><th>Stufe</th><th>Eignung</th><th>DF</th><th>Status</th><th>Austritt</th><th>Aliasse</th><th></th></tr>`;
   $('#personsTable tbody').innerHTML = people.map(p =>
-    `<tr class="${p.status === 'ausgetreten' ? 'is-inactive' : ''}"><td>${esc(p.nachname)}</td><td>${esc(p.vorname)}</td>
+    `<tr class="${p.status === 'ausgetreten' ? 'is-inactive' : ''}"><td><input type="checkbox" data-bulk="${esc(p.id)}" ${bulkSelected.has(p.id) ? 'checked' : ''}></td>
+     <td>${esc(p.nachname)}</td><td>${esc(p.vorname)}</td>
      <td>${lizenzBadge(p)}</td><td>${stufeBadge(p)}</td><td class="hint">${esc(eignungText(p))}</td>
      <td>${p.df ? '✓' : ''}</td><td><span class="chip ${p.status === 'aktiv' ? 'chip-ok' : 'chip-muted'}">${esc(p.status)}</span></td>
      <td>${esc(fmtDateDE(p.austritt))}</td>
      <td class="hint">${esc((p.aliases || []).join(', '))}</td>
      <td><button class="btn btn-sm" data-edit-person="${esc(p.id)}">Bearbeiten</button></td></tr>`
-  ).join('') || '<tr><td colspan="10" class="muted">Keine Personen.</td></tr>';
+  ).join('') || '<tr><td colspan="11" class="muted">Keine Personen.</td></tr>';
+  renderBulkBar();
+  const head = $('#bulkAll');
+  if (head) head.onchange = () => {
+    if (head.checked) for (const p of people) bulkSelected.add(p.id);
+    else bulkSelected.clear();
+    renderPersons();
+  };
   $('#personsTable tbody').onclick = e => {
+    const cb = e.target.closest('[data-bulk]');
+    if (cb) {
+      if (cb.checked) bulkSelected.add(cb.dataset.bulk); else bulkSelected.delete(cb.dataset.bulk);
+      renderBulkBar();
+      const all = $('#bulkAll'); if (all) all.checked = people.length > 0 && people.every(p => bulkSelected.has(p.id));
+      return;
+    }
     const btn = e.target.closest('[data-edit-person]');
     if (btn) openPersonForm(btn.dataset.editPerson);
   };
@@ -2300,62 +2587,73 @@ $('#btnExcelExport').addEventListener('click', () => {
   XLSX.writeFile(wb, 'Zug11_Statistik_Export.xlsx');
 });
 
+/* ===================== FEATURE: Datenprüfung (Panel + Sidebar-Badge) ===================== */
+let checkFindings = [];
+function renderCheckPanel() {
+  checkFindings = checkData(data);
+  const fehler = checkFindings.filter(f => f.typ === 'fehler');
+  const hinweise = checkFindings.filter(f => f.typ === 'hinweis');
+
+  /* dezentes Badge in der Seitenleiste */
+  const badge = $('#checkBadge');
+  badge.hidden = checkFindings.length === 0;
+  badge.textContent = checkFindings.length || '';
+  badge.classList.toggle('is-err', fehler.length > 0);
+  badge.title = fehler.length + ' Fehler, ' + hinweise.length + ' Hinweise — Details unter Datei & Excel → Datenprüfung';
+
+  const panel = $('#checkPanel');
+  if (!checkFindings.length) {
+    panel.innerHTML = '<div class="notice notice-ok">Keine Auffälligkeiten — alle Prüfregeln bestanden.</div>';
+    return;
+  }
+  const item = f => {
+    const links = [];
+    if (f.evDate) links.push(`<a href="#" data-goto-ev="${esc(f.evDate)}">zum Abend</a>`);
+    if (f.personId) links.push(`<a href="#" data-goto-person="${esc(f.personId)}">zur Person</a>`);
+    if (f.code === 'stufe-fehlt') links.push('<a href="#" data-goto-personen>zur Personen-Verwaltung</a>');
+    return `<li><span class="chip ${f.typ === 'fehler' ? 'chip-err' : 'chip-warn'}">${f.typ === 'fehler' ? 'Fehler' : 'Hinweis'}</span>` +
+      `<span>${esc(f.text)}${links.length ? ' · ' + links.join(' · ') : ''}</span></li>`;
+  };
+  panel.innerHTML = '<ul class="check-list">' + [...fehler, ...hinweise].map(item).join('') + '</ul>';
+}
+
+/* Links aus der Datenprüfung: zum betroffenen Abend bzw. zur Person */
+function gotoView(view) {
+  const btn = $$('#mainNav button').find(b => b.dataset.view === view);
+  if (btn) btn.click();
+}
+document.addEventListener('click', e => {
+  const ev = e.target.closest('[data-goto-ev]'), pe = e.target.closest('[data-goto-person]'), pl = e.target.closest('[data-goto-personen]');
+  if (ev) { e.preventDefault(); gotoView('abende'); renderEveningDetail(ev.dataset.gotoEv); }
+  if (pe) { e.preventDefault(); gotoView('personen'); openPersonForm(pe.dataset.gotoPerson); }
+  if (pl) { e.preventDefault(); gotoView('personen'); }
+});
+
 /* ===================== FEATURE: Bericht (Druck/PDF) =====================
-   Eigenständige Druckansicht ohne Library und ohne Netzwerk: #reportView wird
-   befüllt, eine Body-Klasse blendet die App im Druck aus, dann Browser-Druck
-   (Strg+P → „Als PDF speichern“). Rückstandsfrei entfernbar: dieser Block,
-   der #reportView-Container, der Bericht-Button und der Print-CSS-Abschnitt. */
+   Eigenständige Druckansicht ohne Library und ohne Netzwerk: A4 quer, kompakt
+   (eine Zeile pro Person), %-Zellen mit der vollen Excel-Farbskala.
+   Rückstandsfrei entfernbar: dieser Block, der #reportView-Container, der
+   Bericht-Button und der Print-CSS-Abschnitt. */
 function renderReport() {
   const stats = computeStats(data);
-  const gast = computeGastStats(data);
   const cats = data.categories;
-  const evs = sortedEvenings(data);
   const heute = new Date();
   const stichtag = String(heute.getDate()).padStart(2, '0') + '.' + String(heute.getMonth() + 1).padStart(2, '0') + '.' + heute.getFullYear();
 
   let html = '<h1>Zug 11 Statistik</h1>' +
-    '<div class="report-sub">Stichtag ' + stichtag +
-    (evs.length ? ' · letzter erfasster Abend ' + esc(fmtDateDE(evs[evs.length - 1].date)) : '') + '</div>';
+    '<div class="report-sub">Stichtag ' + stichtag + ' · ' + stats.evenings + ' erfasste Abende</div>';
 
-  /* Zusammenfassung */
-  html += '<h2>Zusammenfassung</h2><div class="report-stats">' +
-    '<span><b>' + stats.evenings + '</b> Abende</span>' +
-    cats.map(c => '<span><b>' + (stats.catTotals[c.id] || 0) + '</b> ' + esc(c.label) + '</span>').join('') +
-    (gast.einsaetze ? '<span><b>' + gast.einsaetze + '</b> Gast-Einsätze (' + gast.verschiedene + ' Gäste, ' + fmtPct(gast.anteil) + ' der Crew-Plätze)</span>' : '') +
-    '</div>';
+  /* Heatmap in voller Skala (mix 0) */
+  const heatTd = pct => pct === null || pct === undefined ? '' : ' style="background:' + heatCss(pct, 0) + '"';
 
-  /* Personentabelle (aktive, nach Nachname) */
-  const people = data.people.filter(p => p.status !== 'ausgetreten')
-    .slice().sort((a, b) => (a.nachname + a.vorname).localeCompare(b.nachname + b.vorname, 'de'));
-  html += '<h2>Personen</h2><table><thead><tr><th>Name</th><th>Lizenz</th><th>Stufe</th><th class="num">Dienste</th><th class="num">Anwesenheit</th>' +
+  html += '<table><thead><tr><th>Name</th><th>Lizenz</th><th>Stufe</th><th class="num">Dienste</th><th class="num">Anw. %</th>' +
     cats.map(c => '<th class="num">' + esc(c.label) + '</th><th class="num">%</th>').join('') + '</tr></thead><tbody>';
-  for (const p of people) {
-    const s = stats.perPerson[p.id];
-    html += '<tr><td>' + esc(p.nachname) + ' ' + esc(p.vorname) + '</td><td>' + esc(p.fahrlizenz) + '</td><td>' + esc(p.stufe || 'fehlt') + '</td>' +
-      '<td class="num">' + s.dienste + '</td><td class="num">' + fmtPct(s.presencePct) + '</td>' +
-      cats.map(c => '<td class="num">' + s.catCounts[c.id] + '</td><td class="num">' + fmtPct(s.catPct[c.id]) + '</td>').join('') + '</tr>';
+  for (const row of reportRows(data, stats)) {
+    html += '<tr><td>' + esc(row.name) + '</td><td>' + esc(row.lizenz) + '</td><td>' + esc(row.stufe) + '</td>' +
+      '<td class="num">' + fmtZahl(row.dienste) + '</td><td class="num heat"' + heatTd(row.presencePct) + '>' + fmtPct(row.presencePct) + '</td>' +
+      row.cats.map(c => '<td class="num">' + fmtZahl(c.count) + '</td><td class="num heat"' + heatTd(c.pct) + '>' + fmtPct(c.pct) + '</td>').join('') + '</tr>';
   }
   html += '</tbody></table>';
-
-  /* Dran-Übersicht kompakt (Top 3 je Fairness-Kategorie/Rolle) */
-  const aktive = data.people.filter(p => p.status !== 'ausgetreten');
-  html += '<h2>Wer ist dran?</h2><div class="report-dran">';
-  for (const cat of cats) {
-    if (!cat.fairness) continue;
-    const cols = cat.eligibleFlag
-      ? [{ titel: esc(cat.label), cands: aktive.filter(p => !!p[cat.eligibleFlag]) }]
-      : [
-          (cat.eligibleFahrer || []).length ? { titel: esc(cat.label) + ' als Fahrer', cands: aktive.filter(p => darfFahren(p, cat)) } : null,
-          (cat.eligibleTf || []).length ? { titel: esc(cat.label) + ' als TF', cands: aktive.filter(p => darfTf(p, cat)) } : null
-        ].filter(Boolean);
-    for (const col of cols) {
-      const top = rankDran(col.cands, stats, cat.id).slice(0, 3);
-      html += '<div><strong>' + col.titel + '</strong><ol style="margin:2pt 0;padding-left:14pt">' +
-        top.map(r => '<li>' + esc(r.p.nachname) + ' ' + esc(r.p.vorname) + ' (' + fmtPct(r.anteil) + ', zuletzt ' + esc(fmtVorN(r.lastN)) + ')</li>').join('') +
-        '</ol></div>';
-    }
-  }
-  html += '</div>';
   $('#reportView').innerHTML = html;
 }
 
@@ -2372,6 +2670,7 @@ function renderAll() {
   renderEvenings();
   renderPersons();
   renderCategories();
+  renderCheckPanel(); // FEATURE: Datenprüfung — nach jedem Laden/Verbuchen/Edit
 }
 
 renderAll();
