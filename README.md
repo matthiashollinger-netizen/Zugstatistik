@@ -73,8 +73,12 @@ Zum Ausprobieren ohne echte Daten: `Statistik.beispiel.json` laden
     in `referenz/` (lokal, gitignored; ohne diese Dateien wird übersprungen).
 * Echte Personendaten (Ordner `referenz/`, `Statistik.json`, Exporte) sind
   per `.gitignore` ausgeschlossen und dürfen nie ins Repo.
-* CSS ist als Design-Token-Schicht aufgebaut (`--rk-red` usw.), Klassennamen
-  sind stabil/semantisch. Der optische Feinschliff (RK-Look, eigenes Logo)
-  folgt mit Claude Design auf einem eigenen `design`-Branch und kommt erst
-  nach Review per Merge nach `main`. Das aktuelle Logo ist ein neutraler
-  Platzhalter-Schriftzug (bewusst kein rotes Kreuz — geschütztes Emblem).
+* CSS ist als Design-Token-Schicht aufgebaut (`--rk-red`, `--amber-*`,
+  `--sp-*` usw.), Klassennamen sind stabil/semantisch. Seit dem Design-Pass
+  (Zug-11-Design-System): dunkle linke Seitenleiste, lokale IBM-Plex-Schriften
+  (`fonts/`, SIL-OFL-Lizenz liegt bei — kein Google-Fonts-Import), Markenrot
+  nur als Akzent, Fairness-Markierung in Bernstein. Konventionen: bestehende
+  Klassen (`.card`, `.btn`, `table.data`, `.chip`, `.notice`, `.stat-box` …)
+  verwenden statt Ad-hoc-Styles; Farb-/Abstandsanpassungen nur über die
+  Token-Schicht. Branding ist eine Wortmarke mit „11“-Badge (bewusst kein
+  rotes Kreuz — geschütztes Emblem).
