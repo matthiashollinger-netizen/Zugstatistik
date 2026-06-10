@@ -1,0 +1,14 @@
+# Echte Daten — niemals committen (RK-Personendaten)
+referenz/
+Statistik.json
+*.local.json
+Zug11_Statistik_Export*.xlsx
+*.xlsx
+
+# System / Tooling
+.DS_Store
+node_modules/
+
+# Ausnahme: mitgelieferte Bibliothek bleibt im Repo
+!vendor/
+SPEC.md

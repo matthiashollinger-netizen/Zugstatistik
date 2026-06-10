@@ -1,0 +1,1667 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Zug 11 Statistik</title>
+<style>
+/* ===================== Design-Tokens ===================== */
+:root{
+  --rk-red:#E2001A;
+  --rk-red-dark:#B30015;
+  --rk-red-tint:#FDECEE;
+  --amber:#B45309;
+  --amber-tint:#FEF3C7;
+  --green:#15803D;
+  --green-tint:#DCFCE7;
+  --bg:#F5F6F8;
+  --surface:#FFFFFF;
+  --border:#D9DCE1;
+  --border-strong:#B8BCC4;
+  --text:#1A1D21;
+  --text-muted:#5A616B;
+  --text-faint:#8A919C;
+  --font:-apple-system,"Segoe UI",system-ui,Roboto,"Helvetica Neue",Arial,sans-serif;
+  --fs-xs:.75rem; --fs-sm:.85rem; --fs-md:.95rem; --fs-lg:1.1rem; --fs-xl:1.45rem;
+  --sp-1:.25rem; --sp-2:.5rem; --sp-3:.75rem; --sp-4:1rem; --sp-5:1.5rem; --sp-6:2rem;
+  --radius-sm:4px; --radius:8px; --radius-lg:12px;
+  --shadow:0 1px 3px rgba(16,24,40,.08),0 1px 2px rgba(16,24,40,.04);
+}
+/* ===================== Basis ===================== */
+*{box-sizing:border-box}
+html,body{margin:0;padding:0}
+body{font-family:var(--font);font-size:var(--fs-md);color:var(--text);background:var(--bg);min-width:960px}
+h1,h2,h3{margin:0 0 var(--sp-3) 0;line-height:1.25}
+h2{font-size:var(--fs-xl)} h3{font-size:var(--fs-lg)}
+p{margin:0 0 var(--sp-3) 0}
+a{color:var(--rk-red)}
+/* ===================== Kopf & Navigation ===================== */
+.app-header{background:var(--surface);border-bottom:3px solid var(--rk-red);padding:var(--sp-3) var(--sp-5);display:flex;align-items:center;gap:var(--sp-5)}
+.wordmark{font-size:var(--fs-lg);font-weight:700;letter-spacing:.02em}
+.wordmark .wordmark-accent{color:var(--rk-red)}
+.file-status{margin-left:auto;display:flex;align-items:center;gap:var(--sp-2);font-size:var(--fs-sm);color:var(--text-muted)}
+.file-status .status-dot{width:10px;height:10px;border-radius:50%;background:var(--text-faint);flex:none}
+.file-status.is-connected .status-dot{background:var(--green)}
+.file-status.is-dirty .status-dot{background:var(--amber)}
+.app-nav{background:var(--surface);border-bottom:1px solid var(--border);padding:0 var(--sp-5);display:flex;gap:var(--sp-1)}
+.app-nav button{appearance:none;border:none;background:none;font:inherit;font-size:var(--fs-md);padding:var(--sp-3) var(--sp-4);cursor:pointer;color:var(--text-muted);border-bottom:3px solid transparent;margin-bottom:-1px}
+.app-nav button:hover{color:var(--text)}
+.app-nav button.is-active{color:var(--rk-red);border-bottom-color:var(--rk-red);font-weight:600}
+.app-main{padding:var(--sp-5);max-width:1500px;margin:0 auto}
+.view{display:none}
+.view.is-active{display:block}
+/* ===================== Komponenten ===================== */
+.card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);box-shadow:var(--shadow);padding:var(--sp-5);margin-bottom:var(--sp-5)}
+.card-title{display:flex;align-items:center;justify-content:space-between;gap:var(--sp-3);margin-bottom:var(--sp-4)}
+.card-title h2,.card-title h3{margin:0}
+.btn{appearance:none;font:inherit;font-size:var(--fs-sm);font-weight:600;border:1px solid var(--border-strong);border-radius:var(--radius-sm);background:var(--surface);color:var(--text);padding:var(--sp-2) var(--sp-4);cursor:pointer}
+.btn:hover{background:var(--bg)}
+.btn:disabled{opacity:.5;cursor:not-allowed}
+.btn-primary{background:var(--rk-red);border-color:var(--rk-red);color:#fff}
+.btn-primary:hover{background:var(--rk-red-dark)}
+.btn-danger{color:var(--rk-red);border-color:var(--rk-red)}
+.btn-danger:hover{background:var(--rk-red-tint)}
+.btn-sm{padding:2px var(--sp-2);font-size:var(--fs-xs)}
+.toolbar{display:flex;flex-wrap:wrap;gap:var(--sp-3);align-items:center;margin-bottom:var(--sp-4)}
+.toolbar label{font-size:var(--fs-sm);color:var(--text-muted);display:flex;align-items:center;gap:var(--sp-1)}
+input[type=text],input[type=date],input[type=number],select,textarea{font:inherit;font-size:var(--fs-sm);border:1px solid var(--border-strong);border-radius:var(--radius-sm);padding:var(--sp-2);background:var(--surface);color:var(--text)}
+textarea{width:100%;min-height:220px;font-family:ui-monospace,Menlo,Consolas,monospace;white-space:pre}
+input:focus,select:focus,textarea:focus{outline:2px solid var(--rk-red);outline-offset:0}
+/* ===================== Tabellen ===================== */
+.table-wrap{overflow-x:auto}
+table.data{border-collapse:collapse;width:100%;font-size:var(--fs-sm);background:var(--surface)}
+table.data th,table.data td{border:1px solid var(--border);padding:var(--sp-2) var(--sp-3);text-align:left;white-space:nowrap}
+table.data thead th{background:var(--bg);font-weight:600;position:sticky;top:0}
+table.data th.sortable{cursor:pointer;user-select:none}
+table.data th.sortable:hover{color:var(--rk-red)}
+table.data th .sort-arrow{color:var(--rk-red);font-size:var(--fs-xs)}
+table.data td.num{text-align:right;font-variant-numeric:tabular-nums}
+table.data tr.is-inactive td{color:var(--text-faint)}
+td.fair-low{background:var(--rk-red-tint);font-weight:700;color:var(--rk-red-dark)}
+td.fair-next{background:var(--amber-tint);color:var(--amber)}
+td.not-eligible{color:var(--text-faint)}
+.legend{display:flex;gap:var(--sp-4);font-size:var(--fs-xs);color:var(--text-muted);margin-top:var(--sp-3);align-items:center;flex-wrap:wrap}
+.legend .swatch{display:inline-block;width:14px;height:14px;border-radius:3px;vertical-align:-2px;margin-right:4px;border:1px solid var(--border)}
+/* ===================== Chips & Hinweise ===================== */
+.chip{display:inline-block;padding:1px var(--sp-2);border-radius:999px;font-size:var(--fs-xs);font-weight:600;border:1px solid var(--border)}
+.chip-ok{background:var(--green-tint);color:var(--green);border-color:var(--green)}
+.chip-warn{background:var(--amber-tint);color:var(--amber);border-color:var(--amber)}
+.chip-err{background:var(--rk-red-tint);color:var(--rk-red-dark);border-color:var(--rk-red)}
+.chip-muted{background:var(--bg);color:var(--text-muted)}
+.notice{border:1px solid var(--border);border-left:4px solid var(--rk-red);border-radius:var(--radius-sm);background:var(--surface);padding:var(--sp-3) var(--sp-4);margin-bottom:var(--sp-4);font-size:var(--fs-sm)}
+.notice-warn{border-left-color:var(--amber);background:var(--amber-tint)}
+.notice-err{border-left-color:var(--rk-red);background:var(--rk-red-tint)}
+.notice-ok{border-left-color:var(--green);background:var(--green-tint)}
+.hint{font-size:var(--fs-xs);color:var(--text-muted)}
+/* ===================== Kennzahlen ===================== */
+.stat-grid{display:flex;flex-wrap:wrap;gap:var(--sp-4);margin-bottom:var(--sp-4)}
+.stat-box{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:var(--sp-3) var(--sp-4);min-width:130px}
+.stat-box .stat-value{font-size:var(--fs-xl);font-weight:700;color:var(--rk-red)}
+.stat-box .stat-label{font-size:var(--fs-xs);color:var(--text-muted)}
+/* ===================== Dialog ===================== */
+dialog{border:1px solid var(--border-strong);border-radius:var(--radius-lg);box-shadow:0 10px 40px rgba(16,24,40,.25);padding:var(--sp-5);max-width:640px;font-family:var(--font)}
+dialog::backdrop{background:rgba(16,24,40,.45)}
+.dialog-actions{display:flex;gap:var(--sp-3);justify-content:flex-end;margin-top:var(--sp-4)}
+/* ===================== Formulare ===================== */
+.form-grid{display:grid;grid-template-columns:max-content 1fr;gap:var(--sp-3) var(--sp-4);align-items:center;max-width:620px}
+.form-grid label{font-size:var(--fs-sm);color:var(--text-muted)}
+fieldset{border:1px solid var(--border);border-radius:var(--radius-sm);margin:0 0 var(--sp-4) 0}
+legend{font-size:var(--fs-sm);font-weight:600;padding:0 var(--sp-2)}
+.muted{color:var(--text-muted)}
+.mono{font-family:ui-monospace,Menlo,Consolas,monospace}
+</style>
+</head>
+<body>
+<header class="app-header">
+  <div class="wordmark">Zug 11 <span class="wordmark-accent">Statistik</span></div>
+  <div class="file-status" id="fileStatus">
+    <span class="status-dot"></span>
+    <span id="fileStatusText">Keine Datei verbunden</span>
+    <button class="btn btn-sm" id="btnFileAction">Datei wählen …</button>
+  </div>
+</header>
+<nav class="app-nav" id="mainNav">
+  <button data-view="dashboard" class="is-active">Dashboard</button>
+  <button data-view="erfassen">Abend erfassen</button>
+  <button data-view="abende">Abende</button>
+  <button data-view="personen">Personen</button>
+  <button data-view="kategorien">Kategorien</button>
+  <button data-view="datei">Datei &amp; Excel</button>
+</nav>
+<main class="app-main">
+
+<!-- ================= Dashboard ================= -->
+<section class="view is-active" id="view-dashboard">
+  <div class="stat-grid" id="dashSummary"></div>
+  <div class="card">
+    <div class="card-title"><h2>Personen-Übersicht</h2></div>
+    <div class="toolbar">
+      <label>Qualifikation
+        <select id="dashFilterQual"><option value="">alle</option></select>
+      </label>
+      <label>Berechtigung
+        <select id="dashFilterElig"><option value="">alle</option></select>
+      </label>
+      <label><input type="checkbox" id="dashShowInactive"> Ausgetretene anzeigen</label>
+    </div>
+    <div class="table-wrap"><table class="data" id="dashTable"><thead></thead><tbody></tbody></table></div>
+    <div class="legend">
+      <span><span class="swatch" style="background:var(--rk-red-tint)"></span>niedrigster Anteil unter den Berechtigten („dran“)</span>
+      <span><span class="swatch" style="background:var(--amber-tint)"></span>zweitniedrigster Anteil</span>
+      <span><span class="swatch" style="background:var(--surface)"></span>%-Werte = Anteil an Diensten (Summe kann über 100 % liegen)</span>
+    </div>
+  </div>
+  <div class="card">
+    <div class="card-title"><h3>DF-Balance</h3></div>
+    <p class="hint">Nur Personen mit DF-Berechtigung (df-Häkchen).</p>
+    <div class="table-wrap"><table class="data" id="dfTable"><thead></thead><tbody></tbody></table></div>
+  </div>
+</section>
+
+<!-- ================= Abend erfassen ================= -->
+<section class="view" id="view-erfassen">
+  <div class="card">
+    <div class="card-title"><h2>Dienstplan einfügen</h2></div>
+    <p class="hint">Den Dienstplan auf der HTML-Seite markieren, kopieren und hier einfügen (Strg+V). Danach „Vorschau“.</p>
+    <textarea id="pasteInput" placeholder="Dienstplan hier einfügen …"></textarea>
+    <div class="toolbar" style="margin-top:var(--sp-3)">
+      <button class="btn btn-primary" id="btnParse">Vorschau</button>
+      <button class="btn" id="btnClearPaste">Leeren</button>
+    </div>
+  </div>
+  <div id="previewArea"></div>
+</section>
+
+<!-- ================= Abende ================= -->
+<section class="view" id="view-abende">
+  <div class="card">
+    <div class="card-title"><h2>Erfasste Abende</h2></div>
+    <div class="table-wrap"><table class="data" id="eveningsTable"><thead></thead><tbody></tbody></table></div>
+  </div>
+  <div id="eveningDetail"></div>
+</section>
+
+<!-- ================= Personen ================= -->
+<section class="view" id="view-personen">
+  <div class="card">
+    <div class="card-title"><h2>Personen</h2>
+      <button class="btn btn-primary" id="btnNewPerson">Person anlegen</button>
+    </div>
+    <div class="toolbar">
+      <label><input type="checkbox" id="personsShowInactive"> Ausgetretene anzeigen</label>
+    </div>
+    <div class="table-wrap"><table class="data" id="personsTable"><thead></thead><tbody></tbody></table></div>
+  </div>
+  <div id="personFormArea"></div>
+</section>
+
+<!-- ================= Kategorien ================= -->
+<section class="view" id="view-kategorien">
+  <div class="card">
+    <div class="card-title"><h2>Kategorien</h2>
+      <button class="btn btn-primary" id="btnNewCategory">Kategorie anlegen</button>
+    </div>
+    <p class="hint">Kategorien bestimmen, wie Tour-Codes aus dem Dienstplan zugeordnet werden (Präfixe wie „R“ → R1, R2 …; exakte Codes wie „ÄBD“). Fairness-Kategorien werden im Dashboard hervorgehoben.</p>
+    <div class="table-wrap"><table class="data" id="categoriesTable"><thead></thead><tbody></tbody></table></div>
+  </div>
+  <div id="categoryFormArea"></div>
+</section>
+
+<!-- ================= Datei & Excel ================= -->
+<section class="view" id="view-datei">
+  <div class="card">
+    <div class="card-title"><h2>Statistik-Datei</h2></div>
+    <div id="fileModeInfo"></div>
+    <div class="toolbar" id="fileButtons"></div>
+    <p class="hint">Die Statistik-Datei (JSON) ist die einzige Datenquelle. Bei gemeinsamer Nutzung über OneDrive:
+    Wenn zwei Personen gleichzeitig speichern, kann OneDrive Konfliktkopien anlegen — am besten Änderungen kurz absprechen.</p>
+  </div>
+  <div class="card">
+    <div class="card-title"><h3>Excel-Import (einmalige Übernahme der alten Mappe)</h3></div>
+    <p class="hint">Liest die alte Excel-Statistik (Blätter „Stammdaten“, „Anwesenheit_…“, „KTW_RTW_ÄND_…“) und übernimmt Personen, Abende und Anwesenheit. Bestehende Daten werden ersetzt.</p>
+    <div class="toolbar">
+      <input type="file" id="excelImportInput" accept=".xlsx,.xls">
+      <button class="btn btn-primary" id="btnExcelImport">Excel importieren</button>
+    </div>
+    <div id="excelImportArea"></div>
+  </div>
+  <div class="card">
+    <div class="card-title"><h3>Excel-Export</h3></div>
+    <p class="hint">Exportiert den aktuellen Stand als .xlsx (Übersicht + Rohdaten) für Backup oder Weitergabe.</p>
+    <button class="btn" id="btnExcelExport">Excel exportieren</button>
+  </div>
+</section>
+
+</main>
+<dialog id="appDialog"></dialog>
+<script src="vendor/xlsx.full.min.js"></script>
+<script>
+/* ===== CORE-START ===== (reine Logik, ohne DOM — wird von den Tests direkt geladen) */
+'use strict';
+
+const QUAL_LIST = ['A', 'Prkt', 'B2', 'B3', 'B3-NFS', 'TF-R1', 'TF-R2'];
+const QUAL_INFO = {
+  'A':      'KTW/ZBV/ÄBD ohne Blaulicht, kein RTW',
+  'Prkt':   'nur 2. Trspf./Praktikant, nur KTW',
+  'B2':     'KTW/ZBV/ÄBD mit Blaulicht, kein RTW',
+  'B3':     'wie B2, zusätzlich RTW',
+  'B3-NFS': 'wie B3, zusätzlich NFS',
+  'TF-R1':  'keine Fahrlizenz, TF/2. Trspf., nur KTW',
+  'TF-R2':  'wie TF-R1, zusätzlich RTW'
+};
+
+function defaultCategories() {
+  return [
+    { id: 'RTW', label: 'RTW', matchPrefixes: ['R'], matchCodes: [],             fairness: true,  eligibleQuals: ['B3', 'B3-NFS', 'TF-R2'] },
+    { id: 'KTW', label: 'KTW', matchPrefixes: ['K'], matchCodes: [],             fairness: false, eligibleQuals: ['A', 'Prkt', 'B2', 'B3', 'B3-NFS', 'TF-R1', 'TF-R2'] },
+    { id: 'ABD', label: 'ÄBD', matchPrefixes: [],    matchCodes: ['ÄBD', 'ÄND'], fairness: true,  eligibleQuals: ['A', 'B2', 'B3', 'B3-NFS'] },
+    { id: 'ZBV', label: 'ZBV', matchPrefixes: [],    matchCodes: ['ZBV'],        fairness: false, eligibleQuals: ['A', 'B2', 'B3', 'B3-NFS'] },
+    { id: 'DF',  label: 'DF',  matchPrefixes: [],    matchCodes: ['DF'],         fairness: true,  eligibleFlag: 'df' }
+  ];
+}
+
+function defaultData() {
+  return { version: 1, categories: defaultCategories(), people: [], evenings: [] };
+}
+
+/* ---------- Normalisierung & Namen ---------- */
+function normSpace(s) { return String(s == null ? '' : s).replace(/\s+/g, ' ').trim(); }
+function normKey(s)   { return normSpace(s).toLowerCase(); }
+function normQual(q) {
+  const s = normSpace(q).replace(/\s*-\s*/g, '-').toUpperCase();
+  for (const known of QUAL_LIST) { if (known.toUpperCase() === s) return known; }
+  if (s === 'PRKT') return 'Prkt';
+  return normSpace(q);
+}
+
+function makePersonId(nachname, vorname, existingIds) {
+  const slug = normKey(nachname + ' ' + vorname).replace(/[^a-z0-9äöüß]+/g, '_').replace(/^_+|_+$/g, '');
+  let id = 'p_' + slug, n = 2;
+  while (existingIds && existingIds.has(id)) { id = 'p_' + slug + '_' + n; n++; }
+  return id;
+}
+
+/* Alle Namens-Varianten einer Person (normalisiert) */
+function personNameKeys(p) {
+  const keys = new Set();
+  const vn = normKey(p.vorname), nn = normKey(p.nachname);
+  if (vn || nn) {
+    keys.add(normSpace(vn + ' ' + nn));
+    keys.add(normSpace(nn + ' ' + vn));
+  }
+  for (const a of (p.aliases || [])) {
+    const ak = normKey(a);
+    if (!ak) continue;
+    keys.add(ak);
+    const i = ak.lastIndexOf(' ');
+    if (i > 0) keys.add(ak.slice(i + 1) + ' ' + ak.slice(0, i));
+  }
+  return keys;
+}
+
+/* Name aus dem Plan einer Person zuordnen.
+   Ergebnis: {status:'match'|'none'|'ambiguous', person, candidates} */
+function matchPersonName(rawName, people) {
+  const key = normKey(rawName);
+  if (!key) return { status: 'none', person: null, candidates: [] };
+  const hits = [];
+  for (const p of people) {
+    if (personNameKeys(p).has(key)) hits.push(p);
+  }
+  if (hits.length === 1) return { status: 'match', person: hits[0], candidates: hits };
+  if (hits.length > 1) {
+    const active = hits.filter(p => p.status !== 'ausgetreten');
+    if (active.length === 1) return { status: 'match', person: active[0], candidates: hits };
+    return { status: 'ambiguous', person: null, candidates: hits };
+  }
+  return { status: 'none', person: null, candidates: [] };
+}
+
+/* ---------- Tour-Code → Kategorie(n) ---------- */
+function normCode(code) { return normSpace(code).replace(/\*/g, '').toUpperCase(); }
+
+function resolveSingleCode(code, categories) {
+  for (const cat of categories) {
+    for (const mc of (cat.matchCodes || [])) {
+      if (normCode(mc) === code) return cat.id;
+    }
+  }
+  for (const cat of categories) {
+    for (const pfx of (cat.matchPrefixes || [])) {
+      const P = normCode(pfx);
+      if (P && code.startsWith(P) && /^[0-9]*$/.test(code.slice(P.length))) return cat.id;
+    }
+  }
+  return null;
+}
+
+/* Ergebnis: {catIds:[], unknownParts:[]} — Slash-Kombis (ÄBD/ZBV) ergeben mehrere Kategorien */
+function codeToCategories(rawCode, categories) {
+  const code = normCode(rawCode);
+  if (!code) return { catIds: [], unknownParts: [] };
+  const whole = resolveSingleCode(code, categories);
+  if (whole) return { catIds: [whole], unknownParts: [] };
+  if (code.includes('/')) {
+    const catIds = [], unknownParts = [];
+    for (const part of code.split('/').map(normCode).filter(Boolean)) {
+      const id = resolveSingleCode(part, categories);
+      if (id) { if (!catIds.includes(id)) catIds.push(id); }
+      else unknownParts.push(part);
+    }
+    return { catIds, unknownParts };
+  }
+  return { catIds: [], unknownParts: [code] };
+}
+
+/* ---------- Dienstplan-Parser ---------- */
+const TOUR_CODE_RE = /^[A-ZÄÖÜ][A-ZÄÖÜ0-9*\/.\-]{0,11}$/;
+const CREW_COLS = ['Fahrer', 'Transportführer', '2. Trspf./Praktikant'];
+
+function cleanCellName(s) {
+  let t = normSpace(String(s == null ? '' : s).replace(/[ℹ⚠✓✔️*]/g, ''));
+  if (!t) return null;
+  if (normKey(t) === 'eintragen') return null;
+  if (!/[a-zäöüßa-z]/i.test(t)) return null;   // keine Buchstaben → kein Name
+  if (/^\d/.test(t)) return null;              // Zimmer-/Funknummern
+  return t;
+}
+
+function parseGermanDate(text) {
+  const m = String(text).match(/(\d{1,2})\.(\d{1,2})\.(\d{4})/);
+  if (!m) return null;
+  const d = m[1].padStart(2, '0'), mo = m[2].padStart(2, '0');
+  return m[3] + '-' + mo + '-' + d;
+}
+
+/* Roh-Paste → {date, tours:[{code, catIds, unknownParts, crew:[{role,name}]}], hasTours} */
+function parsePlan(text, categories) {
+  const lines = String(text || '').replace(/\r\n?/g, '\n').split('\n');
+  const date = parseGermanDate(text);
+
+  // Tour-Blöcke finden: Startzeile = genau eine nicht-leere Zelle, die wie ein Tour-Code aussieht
+  const blocks = [];
+  let current = null;
+  for (const line of lines) {
+    const cells = line.split('\t').map(c => normSpace(c));
+    const nonEmpty = cells.filter(Boolean);
+    const isStart = nonEmpty.length === 1 && TOUR_CODE_RE.test(nonEmpty[0]) && !/^\d/.test(nonEmpty[0]);
+    if (isStart) {
+      current = { code: nonEmpty[0], lines: [] };
+      blocks.push(current);
+    } else if (current) {
+      current.lines.push(line);
+    }
+  }
+
+  const tours = [];
+  for (const b of blocks) {
+    // Crew steht in der letzten nicht-leeren Zeile des Blocks
+    let crewLine = '';
+    for (let i = b.lines.length - 1; i >= 0; i--) {
+      if (normSpace(b.lines[i])) { crewLine = b.lines[i]; break; }
+    }
+    let cc = crewLine.split('\t').map(c => normSpace(c));
+    if (cc.length >= 4) {
+      cc = cc.slice(1, 4);                    // erste Zelle = Zimmer-Rest
+    } else if (cc.length >= 1 && cc[0] && /^\d/.test(cc[0])) {
+      cc = cc.slice(1);                       // führende Zimmer-Zelle (gekürzte Zeile)
+    }
+    while (cc.length < 3) cc.push('');
+    cc = cc.slice(0, 3);
+
+    const res = codeToCategories(b.code, categories);
+    const crew = [];
+    for (let i = 0; i < 3; i++) {
+      const name = cleanCellName(cc[i]);
+      if (name) crew.push({ role: CREW_COLS[i], name });
+    }
+    tours.push({ code: normSpace(b.code), catIds: res.catIds, unknownParts: res.unknownParts, crew });
+  }
+  return { date, tours, hasTours: tours.length > 0 };
+}
+
+/* ---------- Abgeleitete Kennzahlen ---------- */
+function sortedEvenings(data) {
+  return [...(data.evenings || [])].sort((a, b) => a.date < b.date ? -1 : a.date > b.date ? 1 : 0);
+}
+
+function personAppearsAt(ev, pid) {
+  const a = ev.assignments && ev.assignments[pid];
+  const hasCat = Array.isArray(a) && a.length > 0;
+  const hasPartial = ev.partials && Object.prototype.hasOwnProperty.call(ev.partials, pid);
+  return hasCat || hasPartial;
+}
+
+/* Statistik je Person: dienste, catCounts, catPct, expected, presenceSum, presencePct */
+function computeStats(data) {
+  const evenings = sortedEvenings(data);
+  const catIds = (data.categories || []).map(c => c.id);
+  const result = { evenings: evenings.length, perPerson: {}, catTotals: {} };
+  for (const cid of catIds) result.catTotals[cid] = 0;
+
+  // erstes Auftreten je Person
+  const firstSeen = {};
+  for (const ev of evenings) {
+    for (const p of data.people) {
+      if (firstSeen[p.id] === undefined && personAppearsAt(ev, p.id)) firstSeen[p.id] = ev.date;
+    }
+  }
+
+  for (const p of data.people) {
+    const s = {
+      dienste: 0, expected: 0, presenceSum: 0, presencePct: null,
+      catCounts: {}, catPct: {}, firstSeen: firstSeen[p.id] || null
+    };
+    for (const cid of catIds) s.catCounts[cid] = 0;
+    const start = p.eintritt || firstSeen[p.id] || null;
+    const end = p.austritt || null;
+
+    for (const ev of evenings) {
+      const a = (ev.assignments && ev.assignments[p.id]) || [];
+      const hasCat = a.length > 0;
+      if (hasCat) {
+        s.dienste++;
+        for (const cid of a) {
+          if (s.catCounts[cid] !== undefined) s.catCounts[cid]++;
+        }
+      }
+      const expected = start !== null && ev.date >= start && (end === null || ev.date <= end);
+      if (expected) {
+        s.expected++;
+        const part = ev.partials && ev.partials[p.id];
+        s.presenceSum += (part !== undefined && part !== null) ? part : (hasCat ? 1 : 0);
+      }
+    }
+    for (const cid of catIds) {
+      s.catPct[cid] = s.dienste > 0 ? s.catCounts[cid] / s.dienste : null;
+    }
+    s.presencePct = s.expected > 0 ? s.presenceSum / s.expected : null;
+    result.perPerson[p.id] = s;
+  }
+
+  for (const ev of evenings) {
+    for (const pid of Object.keys(ev.assignments || {})) {
+      for (const cid of ev.assignments[pid]) {
+        if (result.catTotals[cid] !== undefined) result.catTotals[cid]++;
+      }
+    }
+  }
+  return result;
+}
+
+/* Berechtigung: eligibleFlag (z. B. df) oder eligibleQuals */
+function isEligible(person, cat) {
+  if (cat.eligibleFlag) return !!person[cat.eligibleFlag];
+  if (Array.isArray(cat.eligibleQuals)) return cat.eligibleQuals.includes(person.qualifikation);
+  return true;
+}
+
+/* Fairness: je Fairness-Kategorie die berechtigten aktiven Personen mit dem niedrigsten
+   (Stufe 'low') bzw. zweitniedrigsten ('next') Anteil markieren.
+   Personen ohne Dienste zählen mit Anteil 0 (sie sind am ehesten „dran“). */
+function fairnessMarks(data, stats) {
+  const marks = {}; // pid -> { catId: 'low'|'next' }
+  for (const cat of data.categories) {
+    if (!cat.fairness) continue;
+    const eligible = data.people.filter(p => p.status !== 'ausgetreten' && isEligible(p, cat));
+    if (eligible.length < 2) continue;
+    const vals = eligible.map(p => {
+      const s = stats.perPerson[p.id];
+      const pct = s && s.catPct[cat.id] !== null ? s.catPct[cat.id] : 0;
+      return { pid: p.id, pct };
+    });
+    const distinct = [...new Set(vals.map(v => v.pct))].sort((a, b) => a - b);
+    const low = distinct[0], next = distinct.length > 1 ? distinct[1] : undefined;
+    for (const v of vals) {
+      if (v.pct === low) { (marks[v.pid] = marks[v.pid] || {})[cat.id] = 'low'; }
+      else if (next !== undefined && v.pct === next) { (marks[v.pid] = marks[v.pid] || {})[cat.id] = 'next'; }
+    }
+  }
+  return marks;
+}
+
+/* ---------- Excel-Import (arbeitet auf Zellen-Arrays, SheetJS-unabhängig) ---------- */
+function excelSerialToISO(serial) {
+  const ms = Math.round((Number(serial) - 25569) * 86400000); // 25569 = 1970-01-01
+  return new Date(ms).toISOString().slice(0, 10);
+}
+
+function isJunkName(nachname, vorname) {
+  const n = normKey(nachname), v = normKey(vorname);
+  if (!n && !v) return true;
+  if (n === 'zz' || v === 'zz') return true;
+  if (n === '0' || v === '0') return true;
+  if (n === 'nachname') return true; // Kopfzeile
+  return false;
+}
+
+function parseNumCell(v) {
+  if (v === null || v === undefined || v === '') return null;
+  if (typeof v === 'number') return v;
+  const f = parseFloat(String(v).replace(',', '.'));
+  return isNaN(f) ? null : f;
+}
+
+/* sheets = { stammdaten, anwesenheit, ktw } — jeweils Array-of-Arrays (Zeile 0 = Kopf).
+   Liefert { data, dfCandidates, warnings }. */
+function importFromExcelSheets(sheets, categories) {
+  const cats = categories || defaultCategories();
+  const warnings = [];
+  const data = { version: 1, categories: cats, people: [], evenings: [] };
+  const ids = new Set();
+  const byNameKey = new Map();
+
+  function addPerson(nachname, vorname, qual, status) {
+    const p = {
+      id: makePersonId(nachname, vorname, ids),
+      nachname: normSpace(nachname), vorname: normSpace(vorname),
+      qualifikation: qual ? normQual(qual) : '',
+      status: status || 'aktiv', df: false,
+      eintritt: null, austritt: null, aliases: []
+    };
+    ids.add(p.id);
+    data.people.push(p);
+    for (const k of personNameKeys(p)) byNameKey.set(k, p);
+    return p;
+  }
+  function findByName(nachname, vorname) {
+    return byNameKey.get(normKey(vorname + ' ' + nachname)) || byNameKey.get(normKey(nachname + ' ' + vorname)) || null;
+  }
+
+  /* --- Stammdaten --- */
+  const austrittNames = [];
+  for (const row of (sheets.stammdaten || [])) {
+    if (!row) continue;
+    const [nn, vn, qual, austritt] = [row[0], row[1], row[2], row[3]];
+    if (normSpace(austritt)) austrittNames.push(normSpace(austritt));
+    if (isJunkName(nn, vn)) continue;
+    addPerson(nn, vn, qual, 'aktiv');
+  }
+  for (const full of austrittNames) {
+    if (normKey(full) === 'namen austritt') continue; // Kopfzeile
+    const i = full.indexOf(' ');
+    const a = i > 0 ? full.slice(0, i) : full, b = i > 0 ? full.slice(i + 1) : '';
+    let p = byNameKey.get(normKey(full)) || findByName(a, b);
+    if (!p) p = addPerson(a, b, '', 'ausgetreten');
+    p.status = 'ausgetreten';
+  }
+
+  /* --- Datumsspalten erkennen (Kopfzeile, Excel-Serials) --- */
+  function dateColumns(aoa) {
+    const head = (aoa && aoa[0]) || [];
+    const cols = [];
+    for (let c = 0; c < head.length; c++) {
+      const v = parseNumCell(head[c]);
+      if (v !== null && v > 40000 && v < 60000) cols.push({ col: c, date: excelSerialToISO(v) });
+    }
+    return cols;
+  }
+
+  const evByDate = new Map();
+  function evening(date) {
+    if (!evByDate.has(date)) evByDate.set(date, { date, assignments: {}, partials: {} });
+    return evByDate.get(date);
+  }
+
+  /* --- KTW_RTW_ÄND-Blatt: Zuordnungen --- */
+  const ktwCols = dateColumns(sheets.ktw);
+  const oldCodeMap = { 'KTW': 'KTW', 'RTW': 'RTW', 'ÄND': 'ABD', 'ÄBD': 'ABD', 'ÄND/ZBV': 'ABD', 'ÄBD/ZBV': 'ABD', 'ZBV': 'ZBV', 'DF': 'DF' };
+  for (const row of (sheets.ktw || []).slice(1)) {
+    if (!row || isJunkName(row[0], row[1])) continue;
+    let p = findByName(row[0], row[1]);
+    if (!p) { p = addPerson(row[0], row[1], '', 'aktiv'); warnings.push('Person „' + normSpace(row[0]) + ' ' + normSpace(row[1]) + '“ war nicht in den Stammdaten und wurde ergänzt.'); }
+    for (const { col, date } of ktwCols) {
+      const raw = normSpace(row[col]);
+      if (!raw || raw === '0') continue;
+      const cid = oldCodeMap[raw.toUpperCase()] || null;
+      if (!cid) { warnings.push(date + ': unbekannter Eintrag „' + raw + '“ bei ' + p.nachname + ' wurde übersprungen.'); continue; }
+      const ev = evening(date);
+      const list = ev.assignments[p.id] || (ev.assignments[p.id] = []);
+      if (!list.includes(cid)) list.push(cid);
+    }
+  }
+
+  /* --- Anwesenheits-Blatt: 1/0/Bruch je Abend --- */
+  const anwCols = dateColumns(sheets.anwesenheit);
+  for (const row of (sheets.anwesenheit || []).slice(1)) {
+    if (!row || isJunkName(row[0], row[1])) continue;
+    let p = findByName(row[0], row[1]);
+    if (!p) continue;
+    let firstExplicit = null;
+    for (const { col, date } of anwCols) {
+      const v = parseNumCell(row[col]);
+      if (v === null) continue;
+      if (firstExplicit === null || date < firstExplicit) firstExplicit = date;
+      const ev = evening(date);
+      const hasCat = Array.isArray(ev.assignments[p.id]) && ev.assignments[p.id].length > 0;
+      const derived = hasCat ? 1 : 0;
+      if (v !== derived) ev.partials[p.id] = v; // abweichend → explizit speichern
+    }
+    // Eintritt: ab erster expliziter Anwesenheits-Angabe bzw. erstem Dienst
+    let firstAssign = null;
+    for (const { date } of ktwCols) {
+      const ev = evByDate.get(date);
+      if (ev && ev.assignments[p.id] && ev.assignments[p.id].length) { firstAssign = firstAssign === null || date < firstAssign ? date : firstAssign; }
+    }
+    const candidates = [firstExplicit, firstAssign].filter(Boolean).sort();
+    if (candidates.length) p.eintritt = candidates[0];
+  }
+
+  /* leere partials-Objekte entfernen, Abende sortieren */
+  data.evenings = [...evByDate.values()].sort((a, b) => a.date < b.date ? -1 : 1);
+  for (const ev of data.evenings) {
+    if (Object.keys(ev.partials).length === 0) delete ev.partials;
+  }
+
+  /* --- DF-Kandidaten: Personen mit DF-Diensten im Altbestand --- */
+  const stats = computeStats(data);
+  const dfCandidates = data.people
+    .filter(p => (stats.perPerson[p.id].catCounts['DF'] || 0) > 0)
+    .map(p => ({ id: p.id, name: p.nachname + ' ' + p.vorname, dfCount: stats.perPerson[p.id].catCounts['DF'] }));
+  for (const c of dfCandidates) {
+    const p = data.people.find(x => x.id === c.id);
+    if (p) p.df = true; // Vorbelegung — Nutzer bestätigt
+  }
+  return { data, dfCandidates, warnings };
+}
+
+/* ---------- Abend verbuchen (überschreiben/zusammenführen) ---------- */
+function upsertEvening(data, evening, mode) {
+  const idx = data.evenings.findIndex(e => e.date === evening.date);
+  if (idx === -1) { data.evenings.push(evening); return 'neu'; }
+  if (mode === 'überschreiben') { data.evenings[idx] = evening; return 'überschrieben'; }
+  const old = data.evenings[idx];
+  for (const pid of Object.keys(evening.assignments || {})) {
+    const list = old.assignments[pid] || (old.assignments[pid] = []);
+    for (const cid of evening.assignments[pid]) if (!list.includes(cid)) list.push(cid);
+  }
+  if (evening.partials) {
+    old.partials = old.partials || {};
+    Object.assign(old.partials, evening.partials);
+  }
+  return 'zusammengeführt';
+}
+
+/* ---------- Validierung der Datendatei ---------- */
+function validateData(raw) {
+  if (!raw || typeof raw !== 'object') throw new Error('Keine gültige Statistik-Datei (kein JSON-Objekt).');
+  if (!Array.isArray(raw.people) || !Array.isArray(raw.evenings) || !Array.isArray(raw.categories)) {
+    throw new Error('Keine gültige Statistik-Datei (people/evenings/categories fehlen).');
+  }
+  for (const ev of raw.evenings) {
+    if (!ev.date || !/^\d{4}-\d{2}-\d{2}$/.test(ev.date)) throw new Error('Abend mit ungültigem Datum: ' + JSON.stringify(ev.date));
+    ev.assignments = ev.assignments || {};
+  }
+  return raw;
+}
+
+function fmtPct(v) { return v === null || v === undefined ? '–' : Math.round(v * 100) + ' %'; }
+function fmtDateDE(iso) {
+  if (!iso) return '–';
+  const [y, m, d] = iso.split('-');
+  return d + '.' + m + '.' + y;
+}
+/* ===== CORE-END ===== */
+</script>
+<script>
+/* ===================== App-Zustand ===================== */
+let data = defaultData();
+let fileMode = 'none';        // 'fsa' | 'manual' | 'none'
+let fileHandle = null;        // FileSystemFileHandle
+let lastSavedText = null;     // zuletzt gelesener/geschriebener Dateiinhalt
+let lastModified = null;      // lastModified der Datei beim letzten Lesen/Schreiben
+let manualDirty = false;
+let saveTimer = null;
+let lastSavedAt = null;
+
+const FSA_SUPPORTED = typeof window.showOpenFilePicker === 'function' && window.isSecureContext;
+
+const $ = sel => document.querySelector(sel);
+const $$ = sel => [...document.querySelectorAll(sel)];
+
+function esc(s) {
+  return String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+}
+
+/* ===================== Dialog-Helfer ===================== */
+function showDialog(html, buttons) {
+  return new Promise(resolve => {
+    const dlg = $('#appDialog');
+    dlg.innerHTML = html + '<div class="dialog-actions">' +
+      buttons.map((b, i) => `<button class="btn ${b.primary ? 'btn-primary' : ''} ${b.danger ? 'btn-danger' : ''}" data-i="${i}">${esc(b.label)}</button>`).join('') +
+      '</div>';
+    dlg.querySelectorAll('.dialog-actions button').forEach(btn => {
+      btn.onclick = () => { dlg.close(); resolve(buttons[+btn.dataset.i].value); };
+    });
+    dlg.oncancel = () => resolve(null);
+    dlg.showModal();
+  });
+}
+function infoDialog(html) { return showDialog(html, [{ label: 'OK', value: true, primary: true }]); }
+
+/* ===================== IndexedDB für FSA-Handle ===================== */
+function idbOpen() {
+  return new Promise((res, rej) => {
+    const req = indexedDB.open('zug11statistik', 1);
+    req.onupgradeneeded = () => req.result.createObjectStore('handles');
+    req.onsuccess = () => res(req.result);
+    req.onerror = () => rej(req.error);
+  });
+}
+async function idbSet(key, val) {
+  const db = await idbOpen();
+  return new Promise((res, rej) => {
+    const tx = db.transaction('handles', 'readwrite');
+    tx.objectStore('handles').put(val, key);
+    tx.oncomplete = res; tx.onerror = () => rej(tx.error);
+  });
+}
+async function idbGet(key) {
+  const db = await idbOpen();
+  return new Promise((res, rej) => {
+    const req = db.transaction('handles').objectStore('handles').get(key);
+    req.onsuccess = () => res(req.result); req.onerror = () => rej(req.error);
+  });
+}
+async function idbDel(key) {
+  const db = await idbOpen();
+  return new Promise((res, rej) => {
+    const tx = db.transaction('handles', 'readwrite');
+    tx.objectStore('handles').delete(key);
+    tx.oncomplete = res; tx.onerror = () => rej(tx.error);
+  });
+}
+
+/* ===================== Datei-Funktionen ===================== */
+function nowHM() { const d = new Date(); return String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0'); }
+
+function updateFileStatus() {
+  const el = $('#fileStatus'), txt = $('#fileStatusText'), btn = $('#btnFileAction');
+  el.classList.remove('is-connected', 'is-dirty');
+  if (fileMode === 'fsa' && fileHandle) {
+    el.classList.add('is-connected');
+    txt.textContent = 'Verbunden mit ' + fileHandle.name + (lastSavedAt ? ' – zuletzt gespeichert ' + lastSavedAt : '');
+    btn.textContent = 'Trennen';
+  } else if (fileMode === 'manual') {
+    if (manualDirty) el.classList.add('is-dirty');
+    txt.textContent = 'Manueller Modus' + (manualDirty ? ' – ungespeicherte Änderungen!' : (lastSavedAt ? ' – zuletzt gespeichert ' + lastSavedAt : ''));
+    btn.textContent = 'Datei speichern';
+  } else {
+    txt.textContent = 'Keine Datei verbunden';
+    btn.textContent = FSA_SUPPORTED ? 'Datei wählen …' : 'Datei laden …';
+  }
+  renderFileView();
+}
+
+async function readHandleText() {
+  const f = await fileHandle.getFile();
+  lastModified = f.lastModified;
+  return await f.text();
+}
+
+async function loadFromHandle() {
+  const text = await readHandleText();
+  data = validateData(JSON.parse(text));
+  lastSavedText = text;
+  fileMode = 'fsa';
+  renderAll();
+}
+
+async function connectFile() {
+  try {
+    const [h] = await window.showOpenFilePicker({
+      types: [{ description: 'Statistik-Datei (JSON)', accept: { 'application/json': ['.json'] } }]
+    });
+    fileHandle = h;
+    await loadFromHandle();
+    await idbSet('statistik', h);
+    lastSavedAt = null;
+    updateFileStatus();
+  } catch (e) {
+    if (e && e.name === 'AbortError') return;
+    infoDialog('<h3>Fehler beim Öffnen</h3><p>' + esc(e.message) + '</p>');
+  }
+}
+
+async function createNewFile() {
+  try {
+    const h = await window.showSaveFilePicker({
+      suggestedName: 'Statistik.json',
+      types: [{ description: 'Statistik-Datei (JSON)', accept: { 'application/json': ['.json'] } }]
+    });
+    fileHandle = h;
+    fileMode = 'fsa';
+    await idbSet('statistik', h);
+    await writeFile(true);
+    renderAll(); updateFileStatus();
+  } catch (e) {
+    if (e && e.name === 'AbortError') return;
+    infoDialog('<h3>Fehler</h3><p>' + esc(e.message) + '</p>');
+  }
+}
+
+async function tryReconnect() {
+  if (!FSA_SUPPORTED) return false;
+  try {
+    const h = await idbGet('statistik');
+    if (!h) return false;
+    const banner = document.createElement('div');
+    banner.className = 'notice';
+    banner.innerHTML = 'Zuletzt verwendete Statistik-Datei: <strong>' + esc(h.name) + '</strong> ' +
+      '<button class="btn btn-sm btn-primary" id="btnReconnect">Wieder verbinden</button>';
+    $('.app-main').prepend(banner);
+    $('#btnReconnect').onclick = async () => {
+      try {
+        const perm = await h.requestPermission({ mode: 'readwrite' });
+        if (perm !== 'granted') { infoDialog('<p>Zugriff wurde nicht erlaubt.</p>'); return; }
+        fileHandle = h;
+        await loadFromHandle();
+        banner.remove();
+        updateFileStatus();
+      } catch (e) { infoDialog('<h3>Verbinden fehlgeschlagen</h3><p>' + esc(e.message) + '</p>'); }
+    };
+    return true;
+  } catch (e) { return false; }
+}
+
+/* Schreiben mit Konfliktprüfung (Mehrbenutzer über OneDrive) */
+async function writeFile(skipConflictCheck) {
+  if (fileMode !== 'fsa' || !fileHandle) return;
+  const text = JSON.stringify(data, null, 2);
+  try {
+    if (!skipConflictCheck && lastSavedText !== null) {
+      const f = await fileHandle.getFile();
+      if (f.lastModified !== lastModified) {
+        const current = await f.text();
+        if (current !== lastSavedText) {
+          const choice = await showDialog(
+            '<h3>Datei wurde zwischenzeitlich geändert</h3>' +
+            '<p>Die Statistik-Datei wurde geändert, evtl. von jemand anderem (OneDrive). ' +
+            'Neu laden verwirft die eigenen ungespeicherten Änderungen.</p>',
+            [{ label: 'Neu laden', value: 'reload', primary: true },
+             { label: 'Trotzdem überschreiben', value: 'overwrite', danger: true }]);
+          if (choice === 'reload') { await loadFromHandle(); updateFileStatus(); return; }
+          if (choice !== 'overwrite') return;
+        }
+      }
+    }
+    const w = await fileHandle.createWritable();
+    await w.write(text);
+    await w.close();
+    const f2 = await fileHandle.getFile();
+    lastModified = f2.lastModified;
+    lastSavedText = text;
+    lastSavedAt = nowHM();
+    updateFileStatus();
+  } catch (e) {
+    infoDialog('<h3>Speichern fehlgeschlagen</h3><p>' + esc(e.message) + '</p>');
+  }
+}
+
+/* Nach jeder Datenänderung aufrufen: rendert neu und speichert (debounced) */
+function dataChanged() {
+  renderAll();
+  if (fileMode === 'fsa') {
+    clearTimeout(saveTimer);
+    saveTimer = setTimeout(() => writeFile(false), 800);
+  } else {
+    manualDirty = true;
+  }
+  updateFileStatus();
+}
+
+/* Manueller Modus: Laden über File-Input, Speichern als Download */
+function manualLoad(file) {
+  const reader = new FileReader();
+  reader.onload = () => {
+    try {
+      data = validateData(JSON.parse(reader.result));
+      fileMode = 'manual'; manualDirty = false; lastSavedAt = null;
+      renderAll(); updateFileStatus();
+    } catch (e) { infoDialog('<h3>Datei konnte nicht gelesen werden</h3><p>' + esc(e.message) + '</p>'); }
+  };
+  reader.readAsText(file);
+}
+
+function manualSave() {
+  const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'Statistik.json';
+  a.click();
+  URL.revokeObjectURL(a.href);
+  manualDirty = false; lastSavedAt = nowHM();
+  updateFileStatus();
+}
+
+function renderFileView() {
+  const info = $('#fileModeInfo'), btns = $('#fileButtons');
+  if (!info) return;
+  if (FSA_SUPPORTED) {
+    info.innerHTML = '<div class="notice ' + (fileMode === 'fsa' ? 'notice-ok' : '') + '">' +
+      (fileMode === 'fsa' && fileHandle
+        ? 'Verbunden mit <strong>' + esc(fileHandle.name) + '</strong>. Änderungen werden automatisch gespeichert.'
+        : 'Direkter Dateizugriff ist verfügbar. Statistik-Datei (JSON, z. B. im OneDrive-Ordner) wählen oder neu anlegen.') +
+      '</div>';
+    btns.innerHTML =
+      '<button class="btn btn-primary" id="btnOpenFsa">Statistik-Datei öffnen …</button>' +
+      '<button class="btn" id="btnNewFsa">Neue Statistik-Datei anlegen …</button>' +
+      (fileHandle ? '<button class="btn" id="btnDisconnect">Trennen</button>' : '');
+    $('#btnOpenFsa').onclick = connectFile;
+    $('#btnNewFsa').onclick = createNewFile;
+    if ($('#btnDisconnect')) $('#btnDisconnect').onclick = disconnectFile;
+  } else {
+    info.innerHTML = '<div class="notice notice-warn"><strong>Manueller Modus:</strong> Der direkte Dateizugriff ' +
+      '(File System Access API) ist hier nicht verfügbar (z. B. bei file:// geöffnet). ' +
+      'Datei über „Datei laden“ öffnen und nach Änderungen über „Datei speichern“ herunterladen ' +
+      '(Download dann in den OneDrive-Ordner legen und ersetzen).</div>';
+    btns.innerHTML =
+      '<input type="file" id="manualFileInput" accept=".json,application/json">' +
+      '<button class="btn btn-primary" id="btnManualLoad">Datei laden</button>' +
+      '<button class="btn" id="btnManualSave">Datei speichern (Download)</button>';
+    $('#btnManualLoad').onclick = () => {
+      const f = $('#manualFileInput').files[0];
+      if (!f) { infoDialog('<p>Bitte zuerst eine JSON-Datei auswählen.</p>'); return; }
+      manualLoad(f);
+    };
+    $('#btnManualSave').onclick = manualSave;
+  }
+}
+
+async function disconnectFile() {
+  fileHandle = null; fileMode = 'none'; lastSavedText = null; lastSavedAt = null;
+  await idbDel('statistik');
+  updateFileStatus();
+}
+
+/* ===================== Navigation ===================== */
+$('#mainNav').addEventListener('click', e => {
+  const btn = e.target.closest('button[data-view]');
+  if (!btn) return;
+  $$('#mainNav button').forEach(b => b.classList.toggle('is-active', b === btn));
+  $$('.view').forEach(v => v.classList.toggle('is-active', v.id === 'view-' + btn.dataset.view));
+});
+
+$('#btnFileAction').addEventListener('click', () => {
+  if (fileMode === 'fsa' && fileHandle) disconnectFile();
+  else if (fileMode === 'manual') manualSave();
+  else if (FSA_SUPPORTED) connectFile();
+  else { $$('#mainNav button').find(b => b.dataset.view === 'datei').click(); }
+});
+
+/* ===================== Dashboard ===================== */
+let dashSort = { key: 'nachname', dir: 1 };
+
+function visiblePeople(showInactive) {
+  return data.people.filter(p => showInactive || p.status !== 'ausgetreten');
+}
+
+function renderDashboard() {
+  const stats = computeStats(data);
+  const marks = fairnessMarks(data, stats);
+  const cats = data.categories;
+
+  /* Zusammenfassung */
+  const sum = $('#dashSummary');
+  const activeCount = data.people.filter(p => p.status !== 'ausgetreten').length;
+  sum.innerHTML =
+    '<div class="stat-box"><div class="stat-value">' + stats.evenings + '</div><div class="stat-label">erfasste Abende</div></div>' +
+    '<div class="stat-box"><div class="stat-value">' + activeCount + '</div><div class="stat-label">aktive Personen</div></div>' +
+    cats.map(c => '<div class="stat-box"><div class="stat-value">' + (stats.catTotals[c.id] || 0) + '</div><div class="stat-label">' + esc(c.label) + ' gesamt</div></div>').join('');
+
+  /* Filter-Selects befüllen (Auswahl erhalten) */
+  const qualSel = $('#dashFilterQual'), eligSel = $('#dashFilterElig');
+  const prevQual = qualSel.value, prevElig = eligSel.value;
+  qualSel.innerHTML = '<option value="">alle</option>' + QUAL_LIST.map(q => `<option>${q}</option>`).join('');
+  eligSel.innerHTML = '<option value="">alle</option>' + cats.map(c => `<option value="${esc(c.id)}">${esc(c.label)}-berechtigt</option>`).join('');
+  qualSel.value = prevQual; eligSel.value = prevElig;
+
+  let people = visiblePeople($('#dashShowInactive').checked);
+  if (qualSel.value) people = people.filter(p => p.qualifikation === qualSel.value);
+  if (eligSel.value) {
+    const cat = cats.find(c => c.id === eligSel.value);
+    if (cat) people = people.filter(p => isEligible(p, cat));
+  }
+
+  /* Kopf */
+  const cols = [
+    { key: 'nachname', label: 'Nachname' }, { key: 'vorname', label: 'Vorname' },
+    { key: 'qualifikation', label: 'Qualifikation' }, { key: 'status', label: 'Status' },
+    { key: 'dienste', label: 'Dienste', num: true }, { key: 'presence', label: 'Anwesenheit %', num: true }
+  ];
+  for (const c of cats) {
+    cols.push({ key: 'cnt_' + c.id, label: c.label, num: true, cat: c.id });
+    cols.push({ key: 'pct_' + c.id, label: c.label + ' %', num: true, cat: c.id });
+  }
+  $('#dashTable thead').innerHTML = '<tr>' + cols.map(c =>
+    `<th class="sortable" data-key="${c.key}">${esc(c.label)}${dashSort.key === c.key ? ' <span class="sort-arrow">' + (dashSort.dir > 0 ? '▲' : '▼') + '</span>' : ''}</th>`
+  ).join('') + '</tr>';
+  $('#dashTable thead').onclick = e => {
+    const th = e.target.closest('th[data-key]');
+    if (!th) return;
+    if (dashSort.key === th.dataset.key) dashSort.dir = -dashSort.dir;
+    else dashSort = { key: th.dataset.key, dir: 1 };
+    renderDashboard();
+  };
+
+  /* Werte je Person */
+  const rows = people.map(p => {
+    const s = stats.perPerson[p.id];
+    const vals = {
+      nachname: p.nachname, vorname: p.vorname, qualifikation: p.qualifikation, status: p.status,
+      dienste: s.dienste, presence: s.presencePct
+    };
+    for (const c of cats) { vals['cnt_' + c.id] = s.catCounts[c.id]; vals['pct_' + c.id] = s.catPct[c.id]; }
+    return { p, s, vals };
+  });
+  rows.sort((a, b) => {
+    let va = a.vals[dashSort.key], vb = b.vals[dashSort.key];
+    if (va === null || va === undefined) va = -1; if (vb === null || vb === undefined) vb = -1;
+    if (typeof va === 'string') { va = va.toLowerCase(); vb = String(vb).toLowerCase(); }
+    return (va < vb ? -1 : va > vb ? 1 : 0) * dashSort.dir;
+  });
+
+  $('#dashTable tbody').innerHTML = rows.map(({ p, s, vals }) => {
+    const m = marks[p.id] || {};
+    let html = `<tr class="${p.status === 'ausgetreten' ? 'is-inactive' : ''}">`;
+    html += `<td>${esc(p.nachname)}</td><td>${esc(p.vorname)}</td>`;
+    html += `<td title="${esc(QUAL_INFO[p.qualifikation] || '')}">${esc(p.qualifikation)}${p.qualifikation === 'B3-NFS' ? ' <span class="chip chip-ok" title="Notfallsanität – jeder RTW braucht mind. 1 NFS">NFS</span>' : ''}${p.df ? ' <span class="chip chip-muted" title="DF-berechtigt">DF</span>' : ''}</td>`;
+    html += `<td>${esc(p.status)}</td>`;
+    html += `<td class="num">${s.dienste}</td><td class="num">${fmtPct(s.presencePct)}</td>`;
+    for (const c of cats) {
+      const eligible = isEligible(p, c);
+      const cls = !eligible ? 'not-eligible' : (c.fairness && m[c.id] === 'low' ? 'fair-low' : (c.fairness && m[c.id] === 'next' ? 'fair-next' : ''));
+      const title = !eligible ? 'nicht ' + c.label + '-berechtigt' : (m[c.id] === 'low' ? 'niedrigster Anteil – „dran“' : '');
+      html += `<td class="num ${cls}" title="${esc(title)}">${vals['cnt_' + c.id]}</td>`;
+      html += `<td class="num ${cls}" title="${esc(title)}">${fmtPct(vals['pct_' + c.id])}</td>`;
+    }
+    return html + '</tr>';
+  }).join('') || '<tr><td colspan="99" class="muted">Keine Personen erfasst.</td></tr>';
+
+  /* DF-Tabelle */
+  const dfCat = cats.find(c => c.id === 'DF');
+  const dfPeople = data.people.filter(p => p.df && p.status !== 'ausgetreten');
+  $('#dfTable thead').innerHTML = '<tr><th>Person</th><th>DF-Dienste</th><th>Anteil an Diensten</th><th>Dienste gesamt</th><th>Anwesenheit %</th></tr>';
+  $('#dfTable tbody').innerHTML = dfPeople.map(p => {
+    const s = stats.perPerson[p.id];
+    const m = (marks[p.id] || {})['DF'];
+    const cls = m === 'low' ? 'fair-low' : m === 'next' ? 'fair-next' : '';
+    return `<tr><td>${esc(p.nachname)} ${esc(p.vorname)}</td>` +
+      `<td class="num ${cls}">${dfCat ? s.catCounts['DF'] : '–'}</td>` +
+      `<td class="num ${cls}">${dfCat ? fmtPct(s.catPct['DF']) : '–'}</td>` +
+      `<td class="num">${s.dienste}</td><td class="num">${fmtPct(s.presencePct)}</td></tr>`;
+  }).join('') || '<tr><td colspan="5" class="muted">Keine Personen mit DF-Berechtigung.</td></tr>';
+}
+
+['dashFilterQual', 'dashFilterElig', 'dashShowInactive'].forEach(id => {
+  document.getElementById(id).addEventListener('change', renderDashboard);
+});
+</script>
+<script>
+/* ===================== Abend erfassen (Vorschau-Flow) ===================== */
+let preview = null; // { date, tours, nameRes: Map(nameKey -> {action, personId, raw}), partials: Map(pid -> value) }
+
+$('#btnParse').addEventListener('click', () => {
+  const text = $('#pasteInput').value;
+  const parsed = parsePlan(text, data.categories);
+  if (!parsed.hasTours) {
+    $('#previewArea').innerHTML = '<div class="notice notice-err">Keine Touren erkannt. Bitte den Dienstplan komplett von der HTML-Seite kopieren (inkl. Tour-Codes wie R1, K01, ÄBD).</div>';
+    return;
+  }
+  preview = { date: parsed.date || '', tours: parsed.tours, nameRes: new Map(), partials: new Map() };
+  for (const t of parsed.tours) {
+    for (const c of t.crew) {
+      const key = normKey(c.name);
+      if (preview.nameRes.has(key)) continue;
+      const m = matchPersonName(c.name, data.people);
+      preview.nameRes.set(key, {
+        raw: c.name,
+        action: m.status === 'match' ? 'person' : 'offen',
+        personId: m.status === 'match' ? m.person.id : '',
+        candidates: m.candidates.map(p => p.id),
+        auto: m.status === 'match'
+      });
+    }
+  }
+  renderPreview();
+});
+$('#btnClearPaste').addEventListener('click', () => { $('#pasteInput').value = ''; $('#previewArea').innerHTML = ''; preview = null; });
+
+function personLabel(p) { return p.nachname + ' ' + p.vorname + (p.status === 'ausgetreten' ? ' (ausgetreten)' : ''); }
+function catLabel(cid) { const c = data.categories.find(c => c.id === cid); return c ? c.label : cid; }
+
+function renderPreview() {
+  if (!preview) return;
+  const area = $('#previewArea');
+  const unknownCodes = new Set();
+  for (const t of preview.tours) for (const u of t.unknownParts) unknownCodes.add(u);
+
+  let html = '<div class="card"><div class="card-title"><h3>Vorschau</h3></div>';
+  html += '<div class="toolbar"><label>Datum des Abends <input type="date" id="prevDate" value="' + esc(preview.date) + '"></label>' +
+    (preview.date ? '' : '<span class="chip chip-warn">Kein Datum im Plan gefunden – bitte wählen</span>') + '</div>';
+
+  /* Unbekannte Codes */
+  if (unknownCodes.size) {
+    html += '<div class="notice notice-err"><strong>Unbekannte Tour-Codes:</strong> Diese Codes sind keiner Kategorie zugeordnet. Bitte zuordnen oder neue Kategorie anlegen.';
+    for (const code of unknownCodes) {
+      html += `<div class="toolbar" style="margin:var(--sp-2) 0 0 0">Code <span class="chip chip-err mono">${esc(code)}</span>
+        <select data-unknown-code="${esc(code)}"><option value="">– Kategorie wählen –</option>` +
+        data.categories.map(c => `<option value="${esc(c.id)}">${esc(c.label)}</option>`).join('') +
+        `</select>
+        <button class="btn btn-sm" data-assign-code="${esc(code)}">Code dieser Kategorie zuordnen</button>
+        <button class="btn btn-sm" data-newcat-code="${esc(code)}">Neue Kategorie anlegen</button></div>`;
+    }
+    html += '</div>';
+  }
+
+  /* Touren-Tabelle */
+  html += '<div class="table-wrap"><table class="data"><thead><tr><th>Tour</th><th>Kategorie(n)</th><th>Fahrer</th><th>Transportführer</th><th>2. Trspf./Praktikant</th></tr></thead><tbody>';
+  for (const t of preview.tours) {
+    const catsTxt = t.catIds.map(c => `<span class="chip chip-ok">${esc(catLabel(c))}</span>`).join(' ') +
+      t.unknownParts.map(u => `<span class="chip chip-err">${esc(u)} ?</span>`).join(' ');
+    const byRole = { 'Fahrer': '', 'Transportführer': '', '2. Trspf./Praktikant': '' };
+    for (const c of t.crew) {
+      const res = preview.nameRes.get(normKey(c.name));
+      let chip;
+      if (res.action === 'person' && res.personId) {
+        const p = data.people.find(p => p.id === res.personId);
+        chip = `<span class="chip ${res.auto ? 'chip-ok' : 'chip-warn'}" title="zugeordnet zu ${esc(p ? personLabel(p) : '')}">${esc(c.name)}</span>`;
+      } else if (res.action === 'gast') chip = `<span class="chip chip-muted">${esc(c.name)} (Gast)</span>`;
+      else if (res.action === 'neu') chip = `<span class="chip chip-warn">${esc(c.name)} (neu)</span>`;
+      else chip = `<span class="chip chip-err">${esc(c.name)} ?</span>`;
+      byRole[c.role] = chip;
+    }
+    html += `<tr><td class="mono">${esc(t.code)}</td><td>${catsTxt || '<span class="muted">–</span>'}</td><td>${byRole['Fahrer']}</td><td>${byRole['Transportführer']}</td><td>${byRole['2. Trspf./Praktikant']}</td></tr>`;
+  }
+  html += '</tbody></table></div>';
+
+  /* Unklare Namen */
+  const open = [...preview.nameRes.values()].filter(r => !r.auto);
+  if (open.length) {
+    html += '<h3 style="margin-top:var(--sp-4)">Unklare Namen</h3><p class="hint">Diese Namen konnten keiner aktiven Person eindeutig zugeordnet werden. Gewählte Zuordnungen werden als Alias gemerkt; Gäste werden komplett ignoriert.</p>';
+    for (const r of open) {
+      const key = normKey(r.raw);
+      const opts = data.people
+        .slice().sort((a, b) => (a.nachname + a.vorname).localeCompare(b.nachname + b.vorname))
+        .map(p => `<option value="${esc(p.id)}" ${r.personId === p.id ? 'selected' : ''}>${esc(personLabel(p))}</option>`).join('');
+      html += `<div class="toolbar"><strong>${esc(r.raw)}</strong>
+        ${r.candidates.length > 1 ? '<span class="chip chip-warn">mehrdeutig</span>' : ''}
+        <label><input type="radio" name="nr_${esc(key)}" value="gast" ${r.action === 'gast' ? 'checked' : ''}> Gast (ignorieren)</label>
+        <label><input type="radio" name="nr_${esc(key)}" value="person" ${r.action === 'person' ? 'checked' : ''}> ist Mitglied:</label>
+        <select data-nr-person="${esc(key)}"><option value="">– wählen –</option>${opts}</select>
+        <label><input type="radio" name="nr_${esc(key)}" value="neu" ${r.action === 'neu' ? 'checked' : ''}> neu in Stammdaten aufnehmen</label>
+      </div>`;
+    }
+  }
+
+  /* Teil-Anwesenheit */
+  const assignedPids = previewAssignedPids();
+  if (assignedPids.length) {
+    html += '<h3 style="margin-top:var(--sp-4)">Anwesenheit</h3><p class="hint">Standard: anwesend = 1. Für Teil-Anwesenheit einen Bruch eintragen (z. B. 0,5).</p><div class="toolbar" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:var(--sp-2)">';
+    for (const pid of assignedPids) {
+      const p = data.people.find(p => p.id === pid);
+      const v = preview.partials.has(pid) ? preview.partials.get(pid) : 1;
+      html += `<label>${esc(p ? personLabel(p) : pid)} <input type="number" min="0" max="1" step="0.05" style="width:5.5em" value="${v}" data-partial="${esc(pid)}"></label>`;
+    }
+    html += '</div>';
+  }
+
+  html += '<div class="toolbar" style="margin-top:var(--sp-4)"><button class="btn btn-primary" id="btnConfirmEvening">Abend verbuchen</button><span class="hint" id="confirmHint"></span></div></div>';
+  area.innerHTML = html;
+
+  /* Events */
+  $('#prevDate').onchange = e => { preview.date = e.target.value; };
+  area.querySelectorAll('[data-assign-code]').forEach(btn => {
+    btn.onclick = () => {
+      const code = btn.dataset.assignCode;
+      const sel = area.querySelector(`select[data-unknown-code="${CSS.escape(code)}"]`);
+      const cat = data.categories.find(c => c.id === sel.value);
+      if (!cat) { infoDialog('<p>Bitte zuerst eine Kategorie wählen.</p>'); return; }
+      cat.matchCodes = cat.matchCodes || [];
+      if (!cat.matchCodes.includes(code)) cat.matchCodes.push(code);
+      reResolveCodes(); dataChanged(); renderPreview();
+    };
+  });
+  area.querySelectorAll('[data-newcat-code]').forEach(btn => {
+    btn.onclick = () => openCategoryForm(null, btn.dataset.newcatCode);
+  });
+  area.querySelectorAll('input[type=radio][name^="nr_"]').forEach(radio => {
+    radio.onchange = () => {
+      const key = radio.name.slice(3);
+      const r = preview.nameRes.get(key);
+      r.action = radio.value;
+      if (radio.value === 'person') {
+        const sel = area.querySelector(`select[data-nr-person="${CSS.escape(key)}"]`);
+        r.personId = sel.value;
+      }
+      renderPreview();
+    };
+  });
+  area.querySelectorAll('select[data-nr-person]').forEach(sel => {
+    sel.onchange = () => {
+      const r = preview.nameRes.get(sel.dataset.nrPerson);
+      r.action = 'person'; r.personId = sel.value;
+      renderPreview();
+    };
+  });
+  area.querySelectorAll('input[data-partial]').forEach(inp => {
+    inp.onchange = () => {
+      const v = parseFloat(inp.value);
+      if (!isNaN(v) && v >= 0 && v <= 1) preview.partials.set(inp.dataset.partial, v);
+    };
+  });
+  $('#btnConfirmEvening').onclick = confirmEvening;
+}
+
+function reResolveCodes() {
+  for (const t of preview.tours) {
+    const res = codeToCategories(t.code, data.categories);
+    t.catIds = res.catIds; t.unknownParts = res.unknownParts;
+  }
+}
+
+function previewAssignedPids() {
+  const pids = [];
+  for (const t of preview.tours) {
+    for (const c of t.crew) {
+      const r = preview.nameRes.get(normKey(c.name));
+      if (r && r.action === 'person' && r.personId && !pids.includes(r.personId)) pids.push(r.personId);
+    }
+  }
+  return pids;
+}
+
+async function confirmEvening() {
+  reResolveCodes();
+  const hint = $('#confirmHint');
+  if (!preview.date) { hint.textContent = 'Bitte zuerst ein Datum wählen.'; return; }
+  const unknown = preview.tours.some(t => t.unknownParts.length);
+  if (unknown) { hint.textContent = 'Es gibt noch unbekannte Tour-Codes.'; return; }
+  const open = [...preview.nameRes.values()].some(r => r.action === 'offen' || (r.action === 'person' && !r.personId));
+  if (open) { hint.textContent = 'Bitte alle unklaren Namen auflösen.'; return; }
+
+  /* Neue Personen anlegen */
+  const ids = new Set(data.people.map(p => p.id));
+  for (const r of preview.nameRes.values()) {
+    if (r.action !== 'neu') continue;
+    const raw = normSpace(r.raw);
+    const i = raw.lastIndexOf(' ');
+    const vorname = i > 0 ? raw.slice(0, i) : '', nachname = i > 0 ? raw.slice(i + 1) : raw;
+    const p = { id: makePersonId(nachname, vorname, ids), nachname, vorname, qualifikation: '', status: 'aktiv', df: false, eintritt: null, austritt: null, aliases: [] };
+    ids.add(p.id);
+    data.people.push(p);
+    r.action = 'person'; r.personId = p.id;
+  }
+  /* Aliasse merken (abweichende Schreibweisen) */
+  for (const r of preview.nameRes.values()) {
+    if (r.action !== 'person' || !r.personId || r.auto) continue;
+    const p = data.people.find(p => p.id === r.personId);
+    if (p && !personNameKeys(p).has(normKey(r.raw))) {
+      p.aliases = p.aliases || [];
+      p.aliases.push(normSpace(r.raw));
+    }
+  }
+
+  /* Abend bauen */
+  const evening = { date: preview.date, assignments: {}, partials: {} };
+  for (const t of preview.tours) {
+    for (const c of t.crew) {
+      const r = preview.nameRes.get(normKey(c.name));
+      if (!r || r.action !== 'person' || !r.personId) continue;
+      const list = evening.assignments[r.personId] || (evening.assignments[r.personId] = []);
+      for (const cid of t.catIds) if (!list.includes(cid)) list.push(cid);
+    }
+  }
+  for (const [pid, v] of preview.partials) {
+    if (evening.assignments[pid] && v !== 1) evening.partials[pid] = v;
+  }
+  if (Object.keys(evening.partials).length === 0) delete evening.partials;
+
+  let mode = null;
+  if (data.evenings.some(e => e.date === evening.date)) {
+    mode = await showDialog('<h3>Abend existiert bereits</h3><p>Für den ' + esc(fmtDateDE(evening.date)) + ' ist schon ein Abend erfasst. Überschreiben oder zusammenführen?</p>',
+      [{ label: 'Überschreiben', value: 'überschreiben', danger: true },
+       { label: 'Zusammenführen', value: 'zusammenführen', primary: true },
+       { label: 'Abbrechen', value: null }]);
+    if (!mode) return;
+  }
+  const what = upsertEvening(data, evening, mode || 'neu');
+  dataChanged();
+  preview = null;
+  $('#pasteInput').value = '';
+  $('#previewArea').innerHTML = '<div class="notice notice-ok">Abend ' + esc(fmtDateDE(evening.date)) + ' wurde ' + what + ' (' + Object.keys(evening.assignments).length + ' Personen).</div>';
+}
+
+/* ===================== Abende-Ansicht ===================== */
+function renderEvenings() {
+  const evs = sortedEvenings(data).reverse();
+  $('#eveningsTable thead').innerHTML = '<tr><th>Datum</th><th>Personen</th><th>Kategorien</th><th></th></tr>';
+  $('#eveningsTable tbody').innerHTML = evs.map(ev => {
+    const counts = {};
+    for (const pid of Object.keys(ev.assignments)) for (const cid of ev.assignments[pid]) counts[cid] = (counts[cid] || 0) + 1;
+    const catTxt = data.categories.filter(c => counts[c.id]).map(c => c.label + ' ' + counts[c.id]).join(', ');
+    return `<tr><td>${esc(fmtDateDE(ev.date))}</td><td class="num">${Object.keys(ev.assignments).length}</td><td>${esc(catTxt)}</td>
+      <td><button class="btn btn-sm" data-open-ev="${ev.date}">Öffnen</button> <button class="btn btn-sm btn-danger" data-del-ev="${ev.date}">Löschen</button></td></tr>`;
+  }).join('') || '<tr><td colspan="4" class="muted">Noch keine Abende erfasst.</td></tr>';
+
+  $('#eveningsTable tbody').onclick = async e => {
+    const openBtn = e.target.closest('[data-open-ev]'), delBtn = e.target.closest('[data-del-ev]');
+    if (openBtn) renderEveningDetail(openBtn.dataset.openEv);
+    if (delBtn) {
+      const ok = await showDialog('<h3>Abend löschen?</h3><p>Der Abend ' + esc(fmtDateDE(delBtn.dataset.delEv)) + ' wird mit allen Zuordnungen gelöscht.</p>',
+        [{ label: 'Löschen', value: true, danger: true }, { label: 'Abbrechen', value: false }]);
+      if (ok) {
+        data.evenings = data.evenings.filter(ev => ev.date !== delBtn.dataset.delEv);
+        $('#eveningDetail').innerHTML = '';
+        dataChanged();
+      }
+    }
+  };
+}
+
+function renderEveningDetail(date) {
+  const ev = data.evenings.find(e => e.date === date);
+  if (!ev) { $('#eveningDetail').innerHTML = ''; return; }
+  const pids = new Set([...Object.keys(ev.assignments), ...Object.keys(ev.partials || {})]);
+  const rows = [...pids].map(pid => {
+    const p = data.people.find(p => p.id === pid);
+    const cats = data.categories.map(c => {
+      const on = (ev.assignments[pid] || []).includes(c.id);
+      return `<label style="margin-right:var(--sp-2)"><input type="checkbox" data-ev-cat="${esc(pid)}|${esc(c.id)}" ${on ? 'checked' : ''}> ${esc(c.label)}</label>`;
+    }).join('');
+    const part = ev.partials && ev.partials[pid] !== undefined ? ev.partials[pid] : '';
+    return `<tr><td>${esc(p ? personLabel(p) : pid + ' (unbekannt)')}</td><td>${cats}</td>
+      <td><input type="number" min="0" max="1" step="0.05" style="width:5.5em" value="${part}" placeholder="auto" data-ev-part="${esc(pid)}"></td>
+      <td><button class="btn btn-sm btn-danger" data-ev-rm="${esc(pid)}">Entfernen</button></td></tr>`;
+  }).join('');
+  const addOpts = data.people.filter(p => !pids.has(p.id)).sort((a, b) => (a.nachname + a.vorname).localeCompare(b.nachname + b.vorname))
+    .map(p => `<option value="${esc(p.id)}">${esc(personLabel(p))}</option>`).join('');
+  $('#eveningDetail').innerHTML = `<div class="card"><div class="card-title"><h3>Abend ${esc(fmtDateDE(date))} bearbeiten</h3>
+    <button class="btn" id="btnCloseEvDetail">Schließen</button></div>
+    <div class="table-wrap"><table class="data"><thead><tr><th>Person</th><th>Kategorien</th><th>Anwesenheit (leer = automatisch)</th><th></th></tr></thead>
+    <tbody>${rows}</tbody></table></div>
+    <div class="toolbar" style="margin-top:var(--sp-3)"><select id="evAddPerson"><option value="">– Person hinzufügen –</option>${addOpts}</select>
+    <button class="btn btn-sm" id="btnEvAdd">Hinzufügen</button></div></div>`;
+
+  const root = $('#eveningDetail');
+  root.querySelectorAll('[data-ev-cat]').forEach(cb => cb.onchange = () => {
+    const [pid, cid] = cb.dataset.evCat.split('|');
+    const list = ev.assignments[pid] || (ev.assignments[pid] = []);
+    if (cb.checked) { if (!list.includes(cid)) list.push(cid); }
+    else { ev.assignments[pid] = list.filter(x => x !== cid); if (!ev.assignments[pid].length) delete ev.assignments[pid]; }
+    dataChanged(); renderEveningDetail(date);
+  });
+  root.querySelectorAll('[data-ev-part]').forEach(inp => inp.onchange = () => {
+    const pid = inp.dataset.evPart;
+    ev.partials = ev.partials || {};
+    if (inp.value === '') delete ev.partials[pid];
+    else { const v = parseFloat(inp.value); if (!isNaN(v) && v >= 0 && v <= 1) ev.partials[pid] = v; }
+    if (!Object.keys(ev.partials).length) delete ev.partials;
+    dataChanged(); renderEveningDetail(date);
+  });
+  root.querySelectorAll('[data-ev-rm]').forEach(btn => btn.onclick = () => {
+    delete ev.assignments[btn.dataset.evRm];
+    if (ev.partials) { delete ev.partials[btn.dataset.evRm]; if (!Object.keys(ev.partials).length) delete ev.partials; }
+    dataChanged(); renderEveningDetail(date);
+  });
+  $('#btnEvAdd').onclick = () => {
+    const pid = $('#evAddPerson').value;
+    if (!pid) return;
+    ev.assignments[pid] = ev.assignments[pid] || [];
+    renderEveningDetail(date);
+  };
+  $('#btnCloseEvDetail').onclick = () => { $('#eveningDetail').innerHTML = ''; };
+}
+
+/* ===================== Personenverwaltung ===================== */
+function renderPersons() {
+  const show = $('#personsShowInactive').checked;
+  const people = visiblePeople(show).slice().sort((a, b) => (a.nachname + a.vorname).localeCompare(b.nachname + b.vorname));
+  $('#personsTable thead').innerHTML = '<tr><th>Nachname</th><th>Vorname</th><th>Qualifikation</th><th>darf fahren</th><th>DF</th><th>Status</th><th>Eintritt</th><th>Austritt</th><th>Aliasse</th><th></th></tr>';
+  $('#personsTable tbody').innerHTML = people.map(p =>
+    `<tr class="${p.status === 'ausgetreten' ? 'is-inactive' : ''}"><td>${esc(p.nachname)}</td><td>${esc(p.vorname)}</td>
+     <td>${esc(p.qualifikation)}</td><td class="hint">${esc(QUAL_INFO[p.qualifikation] || '')}</td>
+     <td>${p.df ? '✓' : ''}</td><td>${esc(p.status)}</td>
+     <td>${esc(fmtDateDE(p.eintritt))}</td><td>${esc(fmtDateDE(p.austritt))}</td>
+     <td class="hint">${esc((p.aliases || []).join(', '))}</td>
+     <td><button class="btn btn-sm" data-edit-person="${esc(p.id)}">Bearbeiten</button></td></tr>`
+  ).join('') || '<tr><td colspan="10" class="muted">Keine Personen.</td></tr>';
+  $('#personsTable tbody').onclick = e => {
+    const btn = e.target.closest('[data-edit-person]');
+    if (btn) openPersonForm(btn.dataset.editPerson);
+  };
+}
+$('#personsShowInactive').addEventListener('change', renderPersons);
+$('#btnNewPerson').addEventListener('click', () => openPersonForm(null));
+
+function openPersonForm(pid) {
+  const p = pid ? data.people.find(p => p.id === pid) : { nachname: '', vorname: '', qualifikation: 'B2', status: 'aktiv', df: false, eintritt: null, austritt: null, aliases: [] };
+  $('#personFormArea').innerHTML = `<div class="card"><div class="card-title"><h3>${pid ? 'Person bearbeiten' : 'Person anlegen'}</h3></div>
+    <div class="form-grid">
+      <label>Nachname</label><input type="text" id="pfNachname" value="${esc(p.nachname)}">
+      <label>Vorname</label><input type="text" id="pfVorname" value="${esc(p.vorname)}">
+      <label>Qualifikation</label><select id="pfQual">${['', ...QUAL_LIST].map(q => `<option value="${q}" ${p.qualifikation === q ? 'selected' : ''}>${q || '– keine –'}</option>`).join('')}</select>
+      <label></label><span class="hint" id="pfQualInfo">${esc(QUAL_INFO[p.qualifikation] || '')}</span>
+      <label>Status</label><select id="pfStatus"><option ${p.status === 'aktiv' ? 'selected' : ''}>aktiv</option><option ${p.status === 'ausgetreten' ? 'selected' : ''}>ausgetreten</option></select>
+      <label>DF-berechtigt</label><input type="checkbox" id="pfDf" ${p.df ? 'checked' : ''} style="justify-self:start">
+      <label>Eintritt</label><input type="date" id="pfEintritt" value="${esc(p.eintritt || '')}">
+      <label></label><span class="hint">leer = ab erstem Auftreten im Plan</span>
+      <label>Austritt</label><input type="date" id="pfAustritt" value="${esc(p.austritt || '')}">
+      <label>Aliasse</label><input type="text" id="pfAliases" value="${esc((p.aliases || []).join(', '))}" placeholder="abweichende Schreibweisen, kommagetrennt">
+    </div>
+    <div class="toolbar" style="margin-top:var(--sp-4)">
+      <button class="btn btn-primary" id="pfSave">Speichern</button>
+      <button class="btn" id="pfCancel">Abbrechen</button>
+      ${pid ? '<button class="btn btn-danger" id="pfDelete">Löschen</button>' : ''}
+    </div></div>`;
+  $('#pfQual').onchange = e => { $('#pfQualInfo').textContent = QUAL_INFO[e.target.value] || ''; };
+  $('#pfCancel').onclick = () => { $('#personFormArea').innerHTML = ''; };
+  $('#pfSave').onclick = () => {
+    const nachname = normSpace($('#pfNachname').value), vorname = normSpace($('#pfVorname').value);
+    if (!nachname) { infoDialog('<p>Bitte mindestens einen Nachnamen angeben.</p>'); return; }
+    const vals = {
+      nachname, vorname,
+      qualifikation: $('#pfQual').value, status: $('#pfStatus').value, df: $('#pfDf').checked,
+      eintritt: $('#pfEintritt').value || null, austritt: $('#pfAustritt').value || null,
+      aliases: $('#pfAliases').value.split(',').map(normSpace).filter(Boolean)
+    };
+    if (pid) Object.assign(data.people.find(p => p.id === pid), vals);
+    else data.people.push(Object.assign({ id: makePersonId(nachname, vorname, new Set(data.people.map(p => p.id))) }, vals));
+    $('#personFormArea').innerHTML = '';
+    dataChanged();
+  };
+  if (pid && $('#pfDelete')) $('#pfDelete').onclick = async () => {
+    const stats = computeStats(data);
+    const hasData = stats.perPerson[pid] && (stats.perPerson[pid].dienste > 0 || stats.perPerson[pid].expected > 0);
+    const ok = await showDialog('<h3>Person löschen?</h3><p>' + (hasData ? 'Achtung: Für diese Person sind Dienste erfasst – besser auf „ausgetreten“ setzen. ' : '') + 'Wirklich löschen?</p>',
+      [{ label: 'Löschen', value: true, danger: true }, { label: 'Abbrechen', value: false }]);
+    if (ok) {
+      data.people = data.people.filter(p => p.id !== pid);
+      $('#personFormArea').innerHTML = '';
+      dataChanged();
+    }
+  };
+  $('#personFormArea').scrollIntoView({ behavior: 'smooth' });
+}
+
+/* ===================== Kategorieverwaltung ===================== */
+function renderCategories() {
+  $('#categoriesTable thead').innerHTML = '<tr><th>ID</th><th>Bezeichnung</th><th>Präfixe</th><th>Codes</th><th>Fairness</th><th>Berechtigung</th><th></th></tr>';
+  $('#categoriesTable tbody').innerHTML = data.categories.map(c =>
+    `<tr><td class="mono">${esc(c.id)}</td><td>${esc(c.label)}</td>
+     <td class="mono">${esc((c.matchPrefixes || []).join(', '))}</td><td class="mono">${esc((c.matchCodes || []).join(', '))}</td>
+     <td>${c.fairness ? '✓' : ''}</td>
+     <td class="hint">${c.eligibleFlag ? 'Häkchen „' + esc(c.eligibleFlag) + '“' : esc((c.eligibleQuals || []).join(', '))}</td>
+     <td><button class="btn btn-sm" data-edit-cat="${esc(c.id)}">Bearbeiten</button></td></tr>`
+  ).join('');
+  $('#categoriesTable tbody').onclick = e => {
+    const btn = e.target.closest('[data-edit-cat]');
+    if (btn) openCategoryForm(btn.dataset.editCat);
+  };
+}
+$('#btnNewCategory').addEventListener('click', () => openCategoryForm(null));
+
+function openCategoryForm(cid, presetCode) {
+  const c = cid ? data.categories.find(c => c.id === cid) : { id: '', label: '', matchPrefixes: [], matchCodes: presetCode ? [presetCode] : [], fairness: false, eligibleQuals: [] };
+  $('#categoryFormArea').innerHTML = `<div class="card"><div class="card-title"><h3>${cid ? 'Kategorie bearbeiten' : 'Kategorie anlegen'}</h3></div>
+    <div class="form-grid">
+      <label>ID</label><input type="text" id="cfId" value="${esc(c.id)}" ${cid ? 'disabled' : ''} placeholder="z. B. NFS">
+      <label>Bezeichnung</label><input type="text" id="cfLabel" value="${esc(c.label)}">
+      <label>Präfixe</label><input type="text" id="cfPrefixes" value="${esc((c.matchPrefixes || []).join(', '))}" placeholder="z. B. R (matcht R1, R2 …)">
+      <label>Codes</label><input type="text" id="cfCodes" value="${esc((c.matchCodes || []).join(', '))}" placeholder="z. B. ÄBD, ÄND">
+      <label>Fairness</label><label style="justify-self:start"><input type="checkbox" id="cfFairness" ${c.fairness ? 'checked' : ''}> im Dashboard hervorheben (wer ist „dran“)</label>
+      <label>Berechtigung</label><span>
+        <label><input type="radio" name="cfEligMode" value="quals" ${!c.eligibleFlag ? 'checked' : ''}> nach Qualifikation</label>
+        <label style="margin-left:var(--sp-3)"><input type="radio" name="cfEligMode" value="flag" ${c.eligibleFlag ? 'checked' : ''}> nach Häkchen (df)</label>
+      </span>
+      <label></label><span id="cfQuals">${QUAL_LIST.map(q => `<label style="margin-right:var(--sp-3)"><input type="checkbox" data-cf-qual="${q}" ${(c.eligibleQuals || []).includes(q) ? 'checked' : ''}> ${q}</label>`).join('')}</span>
+    </div>
+    <div class="toolbar" style="margin-top:var(--sp-4)">
+      <button class="btn btn-primary" id="cfSave">Speichern</button>
+      <button class="btn" id="cfCancel">Abbrechen</button>
+      ${cid ? '<button class="btn btn-danger" id="cfDelete">Löschen</button>' : ''}
+    </div></div>`;
+  $('#cfCancel').onclick = () => { $('#categoryFormArea').innerHTML = ''; };
+  $('#cfSave').onclick = () => {
+    const id = cid || normSpace($('#cfId').value).toUpperCase().replace(/[^A-ZÄÖÜ0-9_]/g, '');
+    const label = normSpace($('#cfLabel').value) || id;
+    if (!id) { infoDialog('<p>Bitte eine ID angeben.</p>'); return; }
+    if (!cid && data.categories.some(c => c.id === id)) { infoDialog('<p>Diese ID gibt es schon.</p>'); return; }
+    const eligMode = document.querySelector('input[name=cfEligMode]:checked').value;
+    const vals = {
+      id, label,
+      matchPrefixes: $('#cfPrefixes').value.split(',').map(normSpace).filter(Boolean),
+      matchCodes: $('#cfCodes').value.split(',').map(normSpace).filter(Boolean),
+      fairness: $('#cfFairness').checked
+    };
+    if (eligMode === 'flag') { vals.eligibleFlag = 'df'; delete vals.eligibleQuals; }
+    else { vals.eligibleQuals = $$('#cfQuals input:checked').map(cb => cb.dataset.cfQual); }
+    if (cid) {
+      const cat = data.categories.find(c => c.id === cid);
+      delete cat.eligibleFlag; delete cat.eligibleQuals;
+      Object.assign(cat, vals);
+    } else data.categories.push(vals);
+    $('#categoryFormArea').innerHTML = '';
+    dataChanged();
+    if (preview) { reResolveCodes(); renderPreview(); }
+  };
+  if (cid && $('#cfDelete')) $('#cfDelete').onclick = async () => {
+    const used = data.evenings.some(ev => Object.values(ev.assignments).some(list => list.includes(cid)));
+    const ok = await showDialog('<h3>Kategorie löschen?</h3><p>' + (used ? 'Achtung: Diese Kategorie ist in erfassten Abenden enthalten; die Einträge bleiben dann unzugeordnet. ' : '') + 'Wirklich löschen?</p>',
+      [{ label: 'Löschen', value: true, danger: true }, { label: 'Abbrechen', value: false }]);
+    if (ok) {
+      data.categories = data.categories.filter(c => c.id !== cid);
+      $('#categoryFormArea').innerHTML = '';
+      dataChanged();
+    }
+  };
+  $('#categoryFormArea').scrollIntoView({ behavior: 'smooth' });
+}
+
+/* ===================== Excel-Import / -Export ===================== */
+function requireXLSX() {
+  if (typeof XLSX === 'undefined') {
+    infoDialog('<h3>SheetJS nicht geladen</h3><p>Die Datei <span class="mono">vendor/xlsx.full.min.js</span> muss neben der index.html liegen.</p>');
+    return false;
+  }
+  return true;
+}
+
+$('#btnExcelImport').addEventListener('click', async () => {
+  if (!requireXLSX()) return;
+  const f = $('#excelImportInput').files[0];
+  if (!f) { infoDialog('<p>Bitte zuerst die alte Excel-Datei auswählen.</p>'); return; }
+  try {
+    const wb = XLSX.read(await f.arrayBuffer(), { type: 'array' });
+    const findSheet = re => { const n = wb.SheetNames.find(n => re.test(n)); return n ? XLSX.utils.sheet_to_json(wb.Sheets[n], { header: 1, raw: true, defval: null }) : null; };
+    const sheets = {
+      stammdaten: findSheet(/stammdaten/i),
+      anwesenheit: findSheet(/anwesenheit/i),
+      ktw: findSheet(/ktw/i)
+    };
+    if (!sheets.stammdaten || !sheets.ktw) { infoDialog('<p>Blätter „Stammdaten“ bzw. „KTW_RTW_ÄND…“ wurden in der Mappe nicht gefunden.</p>'); return; }
+    const res = importFromExcelSheets(sheets, defaultCategories());
+    renderExcelImportConfirm(res);
+  } catch (e) {
+    infoDialog('<h3>Import fehlgeschlagen</h3><p>' + esc(e.message) + '</p>');
+  }
+});
+
+function renderExcelImportConfirm(res) {
+  const area = $('#excelImportArea');
+  const st = computeStats(res.data);
+  area.innerHTML = `<div class="notice"><strong>Import-Vorschau:</strong> ${res.data.people.length} Personen, ${res.data.evenings.length} Abende.
+    ${res.warnings.length ? '<br>Hinweise:<br>' + res.warnings.map(esc).join('<br>') : ''}</div>
+    <fieldset><legend>DF-Berechtigung bestätigen</legend>
+    <p class="hint">Diese Personen haben im Altbestand DF-Dienste. Bitte ankreuzen, wer dauerhaft DF-berechtigt ist.</p>
+    ${res.dfCandidates.map(c => `<label style="display:block"><input type="checkbox" data-df-confirm="${esc(c.id)}" checked> ${esc(c.name)} (${c.dfCount}× DF)</label>`).join('') || '<p class="hint">keine</p>'}
+    </fieldset>
+    <div class="toolbar"><button class="btn btn-primary" id="btnApplyImport">Import übernehmen (ersetzt aktuelle Daten)</button>
+    <button class="btn" id="btnCancelImport">Abbrechen</button></div>`;
+  $('#btnCancelImport').onclick = () => { area.innerHTML = ''; };
+  $('#btnApplyImport').onclick = async () => {
+    if (data.evenings.length || data.people.length) {
+      const ok = await showDialog('<h3>Aktuelle Daten ersetzen?</h3><p>Der Excel-Import ersetzt alle aktuell geladenen Daten (' + data.people.length + ' Personen, ' + data.evenings.length + ' Abende).</p>',
+        [{ label: 'Ersetzen', value: true, danger: true }, { label: 'Abbrechen', value: false }]);
+      if (!ok) return;
+    }
+    for (const c of res.dfCandidates) {
+      const cb = area.querySelector(`[data-df-confirm="${CSS.escape(c.id)}"]`);
+      const p = res.data.people.find(p => p.id === c.id);
+      if (p) p.df = !!(cb && cb.checked);
+    }
+    data = res.data;
+    area.innerHTML = '<div class="notice notice-ok">Import übernommen: ' + data.people.length + ' Personen, ' + data.evenings.length + ' Abende.</div>';
+    dataChanged();
+  };
+}
+
+$('#btnExcelExport').addEventListener('click', () => {
+  if (!requireXLSX()) return;
+  const stats = computeStats(data);
+  const cats = data.categories;
+  const wb = XLSX.utils.book_new();
+
+  const ovHead = ['Nachname', 'Vorname', 'Qualifikation', 'Status', 'Dienste', 'Anwesenheit %'];
+  for (const c of cats) { ovHead.push(c.label, c.label + ' %'); }
+  const ovRows = data.people.map(p => {
+    const s = stats.perPerson[p.id];
+    const row = [p.nachname, p.vorname, p.qualifikation, p.status, s.dienste, s.presencePct === null ? '' : Math.round(s.presencePct * 1000) / 10];
+    for (const c of cats) row.push(s.catCounts[c.id], s.catPct[c.id] === null ? '' : Math.round(s.catPct[c.id] * 1000) / 10);
+    return row;
+  });
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet([ovHead, ...ovRows]), 'Übersicht');
+
+  const rawRows = [['Datum', 'Nachname', 'Vorname', 'Kategorien', 'Anwesenheit']];
+  for (const ev of sortedEvenings(data)) {
+    const pids = new Set([...Object.keys(ev.assignments), ...Object.keys(ev.partials || {})]);
+    for (const pid of pids) {
+      const p = data.people.find(p => p.id === pid) || { nachname: pid, vorname: '' };
+      const a = ev.assignments[pid] || [];
+      const part = ev.partials && ev.partials[pid] !== undefined ? ev.partials[pid] : (a.length ? 1 : 0);
+      rawRows.push([ev.date, p.nachname, p.vorname, a.map(catLabel).join('/'), part]);
+    }
+  }
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(rawRows), 'Abende');
+
+  const sdRows = [['Nachname', 'Vorname', 'Qualifikation', 'Status', 'DF', 'Eintritt', 'Austritt', 'Aliasse']];
+  for (const p of data.people) sdRows.push([p.nachname, p.vorname, p.qualifikation, p.status, p.df ? 'ja' : '', p.eintritt || '', p.austritt || '', (p.aliases || []).join(', ')]);
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(sdRows), 'Stammdaten');
+
+  XLSX.writeFile(wb, 'Zug11_Statistik_Export.xlsx');
+});
+
+/* ===================== Init ===================== */
+function renderAll() {
+  renderDashboard();
+  renderEvenings();
+  renderPersons();
+  renderCategories();
+}
+
+renderAll();
+updateFileStatus();
+if (FSA_SUPPORTED) tryReconnect();
+</script>
+</body>
+</html>

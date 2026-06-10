@@ -1,0 +1,84 @@
+{
+  "version": 1,
+  "categories": [
+    { "id": "RTW", "label": "RTW", "matchPrefixes": ["R"], "matchCodes": [], "fairness": true, "eligibleQuals": ["B3", "B3-NFS", "TF-R2"] },
+    { "id": "KTW", "label": "KTW", "matchPrefixes": ["K"], "matchCodes": [], "fairness": false, "eligibleQuals": ["A", "Prkt", "B2", "B3", "B3-NFS", "TF-R1", "TF-R2"] },
+    { "id": "ABD", "label": "ÄBD", "matchPrefixes": [], "matchCodes": ["ÄBD", "ÄND"], "fairness": true, "eligibleQuals": ["A", "B2", "B3", "B3-NFS"] },
+    { "id": "ZBV", "label": "ZBV", "matchPrefixes": [], "matchCodes": ["ZBV"], "fairness": false, "eligibleQuals": ["A", "B2", "B3", "B3-NFS"] },
+    { "id": "DF", "label": "DF", "matchPrefixes": [], "matchCodes": ["DF"], "fairness": true, "eligibleFlag": "df" }
+  ],
+  "people": [
+    { "id": "p_almberger_greta", "nachname": "Almberger", "vorname": "Greta", "qualifikation": "B3", "status": "aktiv", "df": false, "eintritt": null, "austritt": null, "aliases": [] },
+    { "id": "p_bachner_tobias", "nachname": "Bachner", "vorname": "Tobias", "qualifikation": "TF-R2", "status": "aktiv", "df": false, "eintritt": null, "austritt": null, "aliases": ["Tobi Bachner"] },
+    { "id": "p_cerny_paul", "nachname": "Cerny", "vorname": "Paul", "qualifikation": "B3-NFS", "status": "aktiv", "df": false, "eintritt": null, "austritt": null, "aliases": [] },
+    { "id": "p_cerny_mia", "nachname": "Cerny", "vorname": "Mia", "qualifikation": "B2", "status": "aktiv", "df": true, "eintritt": null, "austritt": null, "aliases": [] },
+    { "id": "p_dollinger_lisa_marie", "nachname": "Dollinger", "vorname": "Lisa Marie", "qualifikation": "Prkt", "status": "aktiv", "df": false, "eintritt": null, "austritt": null, "aliases": [] },
+    { "id": "p_ebner_karl", "nachname": "Ebner", "vorname": "Karl", "qualifikation": "B3", "status": "aktiv", "df": true, "eintritt": null, "austritt": null, "aliases": [] },
+    { "id": "p_fuchs_nora", "nachname": "Fuchs", "vorname": "Nora", "qualifikation": "A", "status": "aktiv", "df": false, "eintritt": null, "austritt": null, "aliases": [] },
+    { "id": "p_gruberbauer_jonas", "nachname": "Gruberbauer", "vorname": "Jonas", "qualifikation": "TF-R1", "status": "aktiv", "df": false, "eintritt": null, "austritt": null, "aliases": [] },
+    { "id": "p_innerhofer_helga", "nachname": "Innerhofer", "vorname": "Helga", "qualifikation": "B3-NFS", "status": "aktiv", "df": true, "eintritt": "2026-01-20", "austritt": null, "aliases": [] },
+    { "id": "p_jagersberger_rudolf", "nachname": "Jagersberger", "vorname": "Rudolf", "qualifikation": "B2", "status": "ausgetreten", "df": false, "eintritt": null, "austritt": "2026-02-03", "aliases": [] }
+  ],
+  "evenings": [
+    {
+      "date": "2026-01-06",
+      "assignments": {
+        "p_almberger_greta": ["RTW"],
+        "p_bachner_tobias": ["RTW"],
+        "p_cerny_paul": ["RTW"],
+        "p_cerny_mia": ["KTW"],
+        "p_dollinger_lisa_marie": ["KTW"],
+        "p_fuchs_nora": ["ABD", "ZBV"],
+        "p_ebner_karl": ["DF"],
+        "p_jagersberger_rudolf": ["KTW"]
+      }
+    },
+    {
+      "date": "2026-01-13",
+      "assignments": {
+        "p_almberger_greta": ["KTW"],
+        "p_cerny_paul": ["RTW"],
+        "p_bachner_tobias": ["KTW"],
+        "p_gruberbauer_jonas": ["KTW"],
+        "p_ebner_karl": ["DF"],
+        "p_jagersberger_rudolf": ["KTW"]
+      },
+      "partials": { "p_gruberbauer_jonas": 0.5 }
+    },
+    {
+      "date": "2026-01-20",
+      "assignments": {
+        "p_almberger_greta": ["RTW"],
+        "p_cerny_paul": ["RTW"],
+        "p_innerhofer_helga": ["RTW"],
+        "p_cerny_mia": ["ABD"],
+        "p_dollinger_lisa_marie": ["KTW"],
+        "p_gruberbauer_jonas": ["KTW"],
+        "p_ebner_karl": ["DF"]
+      }
+    },
+    {
+      "date": "2026-01-27",
+      "assignments": {
+        "p_bachner_tobias": ["RTW"],
+        "p_innerhofer_helga": ["RTW"],
+        "p_cerny_mia": ["KTW"],
+        "p_fuchs_nora": ["KTW"],
+        "p_gruberbauer_jonas": ["KTW"],
+        "p_cerny_paul": ["DF"]
+      },
+      "partials": { "p_almberger_greta": 1 }
+    },
+    {
+      "date": "2026-02-03",
+      "assignments": {
+        "p_almberger_greta": ["RTW"],
+        "p_cerny_paul": ["RTW"],
+        "p_innerhofer_helga": ["DF"],
+        "p_cerny_mia": ["ABD", "ZBV"],
+        "p_dollinger_lisa_marie": ["KTW"],
+        "p_fuchs_nora": ["KTW"]
+      }
+    }
+  ]
+}
