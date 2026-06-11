@@ -16,3 +16,6 @@ node_modules/
 # Ausnahme: mitgelieferte Bibliothek bleibt im Repo
 !vendor/
 SPEC.md
+
+# Doku-Build-Zwischendateien
+doku/_*.html

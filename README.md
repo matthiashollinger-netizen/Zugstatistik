@@ -9,6 +9,21 @@ Excel-Statistik und hilft dem Kommando, faire Dienstpläne zu schreiben.
 Sie läuft direkt per `file://` (z. B. aus einem OneDrive-Ordner in Edge
 geöffnet) oder über GitHub Pages.
 
+## Dokumentation für das Kommando
+
+Im Ordner [`doku/`](doku/) liegen zwei bebilderte Anleitungen (als Markdown
+und als fertiges PDF zum Ausdrucken):
+
+* **[Inbetriebnahme](doku/INBETRIEBNAHME.md)**
+  ([PDF](doku/Zug11-Inbetriebnahme.pdf)) — Schritt-für-Schritt für den ersten
+  Start: wie die `Statistik.json` im Edge verbunden wird.
+* **[Handbuch](doku/HANDBUCH.md)** ([PDF](doku/Zug11-Handbuch.pdf)) —
+  vollständige Erklärung aller Ansichten und Konzepte.
+
+Die PDFs und Screenshots werden aus den Markdown-Dateien erzeugt
+(`doku/build-pdf.py`, `doku/_shots.py`); die Screenshots nutzen nur die
+anonyme `Statistik.beispiel.json`.
+
 ## Benutzung
 
 1. `index.html` in Microsoft Edge öffnen (Doppelklick oder über die

@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 820 150" font-family="'IBM Plex Sans', Segoe UI, Arial, sans-serif">
+  <style>
+    .t{fill:#14181f;font-size:14px} .tb{fill:#14181f;font-size:14px;font-weight:700}
+    .btnP{fill:#e2001a} .tw{fill:#fff;font-size:13px;font-weight:600}
+    .cap{fill:#e2001a;font-size:13px;font-weight:600} .arr{stroke:#e2001a;stroke-width:2;fill:none}
+  </style>
+  <!-- notice-Leiste im App-Stil (weiße Karte, roter linker Balken) -->
+  <rect x="20" y="30" width="560" height="58" rx="8" fill="#fff" stroke="#dde2e8"/>
+  <rect x="20" y="30" width="4" height="58" rx="2" fill="#e2001a"/>
+  <text x="40" y="58" class="t">Zuletzt verwendete Statistik-Datei: <tspan class="tb">Statistik.json</tspan></text>
+  <rect x="40" y="66" width="150" height="0" />
+  <rect x="380" y="46" width="170" height="28" rx="5" class="btnP"/>
+  <text x="398" y="65" class="tw">Wieder verbinden</text>
+
+  <circle cx="612" cy="60" r="14" fill="#e2001a"/><text x="607" y="65" fill="#fff" font-size="14" font-weight="700">✓</text>
+  <path class="arr" d="M598 60 H556"/>
+  <text x="636" y="50" class="cap">Bei jedem späteren Start</text>
+  <text x="636" y="67" class="cap">erscheint dieser Balken oben –</text>
+  <text x="636" y="84" class="cap">einmal klicken, fertig.</text>
+</svg>
