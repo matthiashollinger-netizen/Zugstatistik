@@ -20,9 +20,9 @@ geöffnet) oder über GitHub Pages.
    * Über **file://** steht der direkte Dateizugriff browserbedingt nicht zur
      Verfügung — dann gilt der manuelle Modus: „Datei laden“ und nach
      Änderungen „Datei speichern“ (Download in den OneDrive-Ordner legen).
-3. Unter **Abend erfassen** den Dienstplan von der Dienstplan-Webseite
+3. Unter **Dienst erfassen** den Dienstplan von der Dienstplan-Webseite
    kopieren und einfügen → **Vorschau** → Gäste bestätigen / unklare Namen
-   auflösen → **Abend verbuchen**. Nicht zuordenbare Namen werden automatisch
+   auflösen → **Dienst verbuchen**. Nicht zuordenbare Namen werden automatisch
    als Gast erfasst (die App merkt sich bestätigte Gäste); Namen, die einem
    Mitglied verdächtig ähneln (Tippfehler), bleiben zur Entscheidung in der
    Unklar-Liste. Neue Mitglieder lassen sich direkt in der Vorschau anlegen.
@@ -38,7 +38,7 @@ geöffnet) oder über GitHub Pages.
 5. **Bericht** (Seitenleiste) öffnet eine kompakte, farbige Druckansicht
    (A4 quer) — über den Browser-Druck auch als PDF speicherbar.
 6. Die **Datenprüfung** (unter Datei & Excel, Badge in der Seitenleiste)
-   macht Auffälligkeiten sichtbar — z. B. zwei DF an einem Abend (geteilter
+   macht Auffälligkeiten sichtbar — z. B. zwei DF am selben Termin (geteilter
    Dienst) oder Werte außerhalb des gültigen Bereichs. Gelbe Hinweise sind
    quittierbar (das Badge zählt nur offene), rote Fehler nicht. Sie
    korrigiert nie automatisch.
@@ -56,7 +56,7 @@ Zum Ausprobieren ohne echte Daten: `Statistik.beispiel.json` laden
 * Aktuelles Datei-Schema: **Version 4** (Fahrlizenz `keine/A/B2/B3` und Stufe
   `Praktikant/RS1/RS2/NFS`; Zuordnungen mit Rolle; Teil-Dienst-Faktor f ∈
   (0, 1] wirkt einheitlich auf Anwesenheit, Dienste und Kategorien; Gäste je
-  Abend als Objekte mit Kategorien und Rolle; `quittierungen` für quittierte
+  erfasstem Dienst als Objekte mit Kategorien und Rolle; `quittierungen` für quittierte
   Datenprüfungs-Hinweise). Ältere Dateien (v1–v3) werden beim Laden
   automatisch und verlustfrei migriert; redundante 0-Werte werden dabei
   beziffert bereinigt. Zählregel: ÄBD/ZBV-Kombi zählt je 0,5 — die Summe der

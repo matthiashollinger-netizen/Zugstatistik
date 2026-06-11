@@ -1,5 +1,27 @@
 # Changelog
 
+## v1.2.2 — 2026-06-11
+
+Reines Feinschliff-Update — keine Schema-Änderung, keine Änderung an
+Zählregeln oder gespeicherten Daten.
+
+* **DF-Statistik:** zweite Prozent-Spalte „DF %“ (DF-Dienste ÷ Gesamt-Dienste
+  der Person, Faktor-gewichtet wie alle Kategorie-Prozente) neben der
+  bestehenden Bilanz-Spalte „Anteil an allen DF“; beide mit erklärendem
+  Tooltip. Keine Heatmap in dieser Tabelle.
+* **Begriff vereinheitlicht:** Alle sichtbaren „Abend/Abende“ in der
+  Oberfläche heißen jetzt „Dienst/Dienste“ (Navigation „Dienst erfassen“ /
+  „Dienste“, Liste „Erfasste Dienste“, Dialoge, Datenprüfung, Bericht,
+  „zuletzt vor N Diensten“). Interne Bezeichner, Datenfelder (`evenings`,
+  `date` …) und der Inhalt der Statistik.json sind unverändert.
+* **„Wer ist dran?“-Karten:** Standard 4 sichtbare Kandidaten; schlanke
+  Kandidatenzeile (Name + Anteil als Amber-Balken, dezent „zuletzt vor N
+  Diensten“), Details (Anzahl, Dienste gesamt) im Tooltip bzw. beim
+  Aufklappen; Platz 1 deutlich hervorgehoben. Ranking-Logik, TF×RTW-Regel
+  und „wenig Daten“-Badge unverändert.
+* **Gäste-Tabelle:** Zahlenspalten samt Köpfen mittig ausgerichtet (eigener
+  Tabellen-Modifier, andere Tabellen unberührt).
+
 ## v1.2.1 — 2026-06-11
 
 **Regeländerung — ÄBD/ZBV-Kombi zählt 0,5 / 0,5:** Der kombinierte Tour-Code

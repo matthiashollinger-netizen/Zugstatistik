@@ -138,6 +138,8 @@ table.data th .sort-arrow{color:var(--rk-red);font-size:.65rem}
 table.data td.num{text-align:right;font-variant-numeric:tabular-nums;font-family:var(--mono);font-size:var(--fs-sm)}
 table.data th.num{text-align:right}
 table.data th.cat-cnt,table.data td.cat-cnt{border-left:1px solid var(--border)}
+/* Modifier: Zahlen mittig unter ihren Spaltenköpfen (nur Gäste-Tabelle) */
+table.data.num-center th.num,table.data.num-center td.num{text-align:center}
 table.data th.cat-pct{color:var(--text-faint)}
 table.data td.cat-pct{color:var(--text-faint);font-size:.72rem}
 table.data tr.is-inactive td{color:var(--text-faint)}
@@ -175,12 +177,21 @@ table.data td.not-eligible{color:var(--border-strong)}
 .dran-cols{display:flex;gap:var(--sp-4);flex-wrap:wrap}
 .dran-col{flex:1;min-width:200px}
 .dran-col h4{margin:0 0 var(--sp-2) 0;font-size:.6875rem;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--text-muted)}
-ol.dran-list{margin:0;padding-left:1.35em;font-size:var(--fs-sm)}
-ol.dran-list li{margin-bottom:var(--sp-2)}
-ol.dran-list li::marker{color:var(--text-faint);font-variant-numeric:tabular-nums}
-ol.dran-list li:first-child>.dran-name{color:var(--amber);background:var(--amber-tint-2);box-shadow:inset 3px 0 0 var(--amber-strong);padding:1px 7px 1px 9px;border-radius:3px}
-.dran-name{font-weight:600}
-.dran-meta{color:var(--text-muted);font-size:var(--fs-xs);margin-top:2px}
+/* schlanke Kandidatenzeilen: Name + Anteil (Balken), Details im Tooltip/Aufklappen */
+ol.dran-list{margin:0;padding:0;list-style:none;font-size:var(--fs-sm)}
+ol.dran-list li{margin-bottom:var(--sp-3)}
+.dran-row{display:flex;align-items:baseline;gap:var(--sp-2)}
+.dran-name{font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.dran-pct{margin-left:auto;flex:none;font-family:var(--mono);font-variant-numeric:tabular-nums;font-weight:600;font-size:var(--fs-xs);color:var(--amber)}
+.dran-bar{height:4px;border-radius:999px;background:var(--surface-sunken);margin-top:3px;overflow:hidden}
+.dran-bar span{display:block;height:100%;background:var(--amber-border);border-radius:999px;min-width:2px}
+.dran-meta{color:var(--text-faint);font-size:var(--fs-xs);margin-top:2px}
+/* Platz 1 hervorgehoben: größer, kräftiger Balken mit Amber-Akzent */
+li.dran-top .dran-name{font-size:var(--fs-md);color:var(--amber)}
+li.dran-top .dran-pct{font-size:var(--fs-sm);color:var(--amber-strong)}
+li.dran-top .dran-bar{height:8px;background:var(--amber-tint)}
+li.dran-top .dran-bar span{background:var(--amber-strong)}
+li.dran-top .dran-meta{color:var(--text-muted)}
 .dran-toggle{margin-top:var(--sp-1)}
 /* ===================== Dialog ===================== */
 dialog{border:1px solid var(--border);border-radius:var(--radius-lg);box-shadow:var(--shadow-lg);padding:var(--sp-5);max-width:640px;font-family:var(--font);color:var(--text)}
@@ -227,8 +238,8 @@ legend{font-size:var(--fs-sm);font-weight:600;padding:0 var(--sp-2);color:var(--
   <div class="wordmark">Zug 11 <span class="wordmark-accent">Statistik</span></div>
   <nav class="app-nav" id="mainNav">
     <button data-view="dashboard" class="is-active">Dashboard</button>
-    <button data-view="erfassen">Abend erfassen</button>
-    <button data-view="abende">Abende</button>
+    <button data-view="erfassen">Dienst erfassen</button>
+    <button data-view="abende">Dienste</button>
     <button data-view="gaeste">Gäste</button>
     <button data-view="personen">Personen</button>
     <button data-view="kategorien">Kategorien</button>
@@ -295,7 +306,7 @@ legend{font-size:var(--fs-sm);font-weight:600;padding:0 var(--sp-2);color:var(--
 <!-- ================= Abende ================= -->
 <section class="view" id="view-abende">
   <div class="card">
-    <div class="card-title"><h2>Erfasste Abende</h2></div>
+    <div class="card-title"><h2>Erfasste Dienste</h2></div>
     <div class="table-wrap"><table class="data" id="eveningsTable"><thead></thead><tbody></tbody></table></div>
   </div>
   <div id="eveningDetail"></div>
@@ -310,7 +321,7 @@ legend{font-size:var(--fs-sm);font-weight:600;padding:0 var(--sp-2);color:var(--
     <p class="hint">Reine Statistik — wer hilft oft aus, und mit welchem Fahrzeug-Verhältnis
     (z. B. um einem fleißigen Gast einmal einen RTW zu geben). „?“ = Alt-Einsätze, deren
     Kategorie vor Version 4 nicht erfasst wurde.</p>
-    <div class="table-wrap"><table class="data" id="gaesteTable"><thead></thead><tbody></tbody></table></div>
+    <div class="table-wrap"><table class="data num-center" id="gaesteTable"><thead></thead><tbody></tbody></table></div>
   </div>
 </section>
 
@@ -353,7 +364,7 @@ legend{font-size:var(--fs-sm);font-weight:600;padding:0 var(--sp-2);color:var(--
   </div>
   <div class="card">
     <div class="card-title"><h3>Excel-Import (einmalige Übernahme der alten Mappe)</h3></div>
-    <p class="hint">Liest die alte Excel-Statistik (Blätter „Stammdaten“, „Anwesenheit_…“, „KTW_RTW_ÄND_…“) und übernimmt Personen, Abende und Anwesenheit. Bestehende Daten werden ersetzt.</p>
+    <p class="hint">Liest die alte Excel-Statistik (Blätter „Stammdaten“, „Anwesenheit_…“, „KTW_RTW_ÄND_…“) und übernimmt Personen, Dienste und Anwesenheit. Bestehende Daten werden ersetzt.</p>
     <div class="toolbar">
       <input type="file" id="excelImportInput" accept=".xlsx,.xls">
       <button class="btn btn-primary" id="btnExcelImport">Excel importieren</button>
@@ -722,10 +733,11 @@ function dfStatistik(data, stats) {
     .map(p => {
       const s = stats.perPerson[p.id];
       const dfDienste = (s && s.catCounts['DF']) || 0;
+      const dienste = s ? s.dienste : 0;
       return {
-        p, dfDienste,
-        anteil: totalDf > 0 ? dfDienste / totalDf : null,
-        dienste: s ? s.dienste : 0,
+        p, dfDienste, dienste,
+        anteil: totalDf > 0 ? dfDienste / totalDf : null,     // Bilanz unter den DF-Leistenden (Summe 100 %)
+        dfPct: dienste > 0 ? dfDienste / dienste : null,      // DF-Anteil an den eigenen Diensten (wie Kategorie-%)
         ohneBerechtigung: !p.df && dfDienste > 0
       };
     })
@@ -1004,8 +1016,8 @@ function eveningsSince(stats, date) {
 }
 function fmtVorN(n) {
   if (n === null || n === undefined) return 'nie';
-  if (n === 0) return 'beim letzten Abend';
-  return n === 1 ? 'vor 1 Abend' : 'vor ' + n + ' Abenden';
+  if (n === 0) return 'beim letzten Dienst';
+  return n === 1 ? 'vor 1 Dienst' : 'vor ' + n + ' Diensten';
 }
 
 /* Berechtigung: eligibleFlag (z. B. df) oder als Fahrer/TF geeignet */
@@ -1090,8 +1102,8 @@ function checkData(data) {
   /* doppelte Abend-Daten (fehlende/ungültige fängt validateData beim Laden) */
   const seen = new Set();
   for (const ev of (data.evenings || [])) {
-    if (!ev.date) { findings.push({ typ: 'fehler', code: 'datum-fehlt', key: 'datum-fehlt', text: 'Ein Abend hat kein Datum.' }); continue; }
-    if (seen.has(ev.date)) findings.push({ typ: 'fehler', code: 'datum-doppelt', key: 'datum-doppelt:' + ev.date, evDate: ev.date, text: 'Zwei Abende mit demselben Datum ' + fmtDateDE(ev.date) + '.' });
+    if (!ev.date) { findings.push({ typ: 'fehler', code: 'datum-fehlt', key: 'datum-fehlt', text: 'Ein Dienst hat kein Datum.' }); continue; }
+    if (seen.has(ev.date)) findings.push({ typ: 'fehler', code: 'datum-doppelt', key: 'datum-doppelt:' + ev.date, evDate: ev.date, text: 'Zwei Dienste mit demselben Datum ' + fmtDateDE(ev.date) + '.' });
     seen.add(ev.date);
   }
 
@@ -1337,7 +1349,7 @@ function validateData(raw) {
     throw new Error('Keine gültige Statistik-Datei (people/evenings/categories fehlen).');
   }
   for (const ev of raw.evenings) {
-    if (!ev.date || !/^\d{4}-\d{2}-\d{2}$/.test(ev.date)) throw new Error('Abend mit ungültigem Datum: ' + JSON.stringify(ev.date));
+    if (!ev.date || !/^\d{4}-\d{2}-\d{2}$/.test(ev.date)) throw new Error('Dienst mit ungültigem Datum: ' + JSON.stringify(ev.date));
     ev.assignments = ev.assignments || {};
   }
   return raw;
@@ -1807,19 +1819,27 @@ function renderDranCards(stats) {
     html += `<div class="dran-card"><h3>Wer ist dran? — ${esc(cat.label)}</h3><div class="dran-cols">`;
     for (const col of cols) {
       const expandKey = cat.id + '|' + col.key;
+      const expanded = dranExpand.has(expandKey);
       const ranked = rankDran(col.cands, stats, cat.id);
-      const shown = dranExpand.has(expandKey) ? ranked : ranked.slice(0, 3);
+      /* Standard: 4 Kandidaten sichtbar, Platz 1 hervorgehoben; Details
+         (Anzahl, Dienste gesamt) erst beim Aufklappen bzw. im Tooltip */
+      const shown = expanded ? ranked : ranked.slice(0, 4);
       html += `<div class="dran-col"><h4>${esc(col.titel)}</h4>`;
-      html += '<ol class="dran-list">' + shown.map(r =>
-        `<li><span class="dran-name">${esc(r.p.nachname)} ${esc(r.p.vorname)}</span>` +
-        (r.wenigDaten ? ' <span class="chip chip-warn" title="weniger als 5 erfasste Dienste — Reihung normal, aber dünne Datenbasis">wenig Daten</span>' : '') +
-        `<div class="dran-meta">${fmtPct(r.anteil)} · ${fmtZahl(r.count)}× ${esc(cat.label)} · zuletzt ${
-          r.last ? `<span title="${esc(fmtDateDE(r.last))}">${esc(fmtVorN(r.lastN))}</span>` : 'nie'
-        } · ${fmtZahl(r.dienste)} Dienste gesamt</div></li>`
-      ).join('') + '</ol>';
-      if (ranked.length > 3) {
+      html += '<ol class="dran-list">' + shown.map((r, i) => {
+        const details = fmtZahl(r.count) + '× ' + cat.label + ' · ' + fmtZahl(r.dienste) + ' Dienste gesamt';
+        const zuletzt = r.last
+          ? `zuletzt <span title="${esc(fmtDateDE(r.last))}">${esc(fmtVorN(r.lastN))}</span>`
+          : 'noch nie ' + esc(cat.label);
+        return `<li class="${i === 0 ? 'dran-top' : ''}" title="${esc(details)}">
+          <div class="dran-row"><span class="dran-name">${esc(r.p.nachname)} ${esc(r.p.vorname)}</span>` +
+          (r.wenigDaten ? ' <span class="chip chip-warn" title="weniger als 5 erfasste Dienste — Reihung normal, aber dünne Datenbasis">wenig Daten</span>' : '') +
+          `<span class="dran-pct">${fmtPct(r.anteil)}</span></div>
+          <div class="dran-bar"><span style="width:${Math.round(Math.max(0, Math.min(1, r.anteil)) * 100)}%"></span></div>
+          <div class="dran-meta">${zuletzt}${expanded ? ' · ' + esc(details) : ''}</div></li>`;
+      }).join('') + '</ol>';
+      if (ranked.length > 4) {
         html += `<button class="btn btn-sm dran-toggle" data-dran-toggle="${esc(expandKey)}">${
-          dranExpand.has(expandKey) ? 'weniger anzeigen' : 'alle ' + ranked.length + ' anzeigen'}</button>`;
+          expanded ? 'weniger anzeigen' : 'alle ' + ranked.length + ' anzeigen'}</button>`;
       }
       if (!ranked.length) html += '<p class="hint">keine Berechtigten</p>';
       if (col.fussnote) html += `<p class="hint">${esc(col.fussnote)}</p>`;
@@ -1937,11 +1957,15 @@ function renderDfCard(stats) {
   const card = $('#dfCard');
   if (!rows.length) { card.hidden = true; return; }
   card.hidden = false;
-  $('#dfTable thead').innerHTML = '<tr><th>Name</th><th class="num">DF-Dienste</th><th class="num">Anteil an allen DF</th><th class="num">Dienste gesamt</th></tr>';
+  $('#dfTable thead').innerHTML = '<tr><th>Name</th><th class="num">DF-Dienste</th>' +
+    '<th class="num" title="Bilanz unter den DF-Berechtigten, Summe 100 %">Anteil an allen DF</th>' +
+    '<th class="num" title="Anteil der DF-Dienste an allen Diensten der Person">DF %</th>' +
+    '<th class="num">Dienste gesamt</th></tr>';
   $('#dfTable tbody').innerHTML = rows.map(r =>
     `<tr class="${r.ohneBerechtigung || r.p.status === 'ausgetreten' ? 'is-inactive' : ''}">
      <td>${esc(r.p.nachname)} ${esc(r.p.vorname)}${r.ohneBerechtigung ? ' <span class="chip chip-muted" title="hat DF-Dienste, aber kein DF-Häkchen">ohne DF-Berechtigung</span>' : ''}${r.p.status === 'ausgetreten' ? ' <span class="chip chip-muted">ausgetreten</span>' : ''}</td>
-     <td class="num">${fmtZahl(r.dfDienste)}</td><td class="num">${fmtPct(r.anteil)}</td><td class="num">${fmtZahl(r.dienste)}</td></tr>`
+     <td class="num">${fmtZahl(r.dfDienste)}</td><td class="num" title="Bilanz unter den DF-Berechtigten, Summe 100 %">${fmtPct(r.anteil)}</td>
+     <td class="num" title="Anteil der DF-Dienste an allen Diensten der Person">${fmtPct(r.dfPct)}</td><td class="num">${fmtZahl(r.dienste)}</td></tr>`
   ).join('');
 }
 
@@ -1996,7 +2020,7 @@ function renderPreview() {
   for (const t of preview.tours) for (const u of t.unknownParts) unknownCodes.add(u);
 
   let html = '<div class="card"><div class="card-title"><h3>Vorschau</h3></div>';
-  html += '<div class="toolbar"><label>Datum des Abends <input type="date" id="prevDate" value="' + esc(preview.date) + '"></label>' +
+  html += '<div class="toolbar"><label>Datum des Dienstes <input type="date" id="prevDate" value="' + esc(preview.date) + '"></label>' +
     (preview.date ? '' : '<span class="chip chip-warn">Kein Datum im Plan gefunden – bitte wählen</span>') + '</div>';
 
   /* Unbekannte Codes */
@@ -2100,7 +2124,7 @@ function renderPreview() {
     html += '</div>';
   }
 
-  html += '<div class="toolbar" style="margin-top:var(--sp-4)"><button class="btn btn-primary" id="btnConfirmEvening">Abend verbuchen</button><span class="hint" id="confirmHint"></span></div></div>';
+  html += '<div class="toolbar" style="margin-top:var(--sp-4)"><button class="btn btn-primary" id="btnConfirmEvening">Dienst verbuchen</button><span class="hint" id="confirmHint"></span></div></div>';
   area.innerHTML = html;
 
   /* Events */
@@ -2279,7 +2303,7 @@ async function confirmEvening() {
 
   let mode = null;
   if (data.evenings.some(e => e.date === evening.date)) {
-    mode = await showDialog('<h3>Abend existiert bereits</h3><p>Für den ' + esc(fmtDateDE(evening.date)) + ' ist schon ein Abend erfasst. Überschreiben oder zusammenführen?</p>',
+    mode = await showDialog('<h3>Dienst existiert bereits</h3><p>Für den ' + esc(fmtDateDE(evening.date)) + ' ist schon ein Dienst erfasst. Überschreiben oder zusammenführen?</p>',
       [{ label: 'Überschreiben', value: 'überschreiben', danger: true },
        { label: 'Zusammenführen', value: 'zusammenführen', primary: true },
        { label: 'Abbrechen', value: null }]);
@@ -2289,7 +2313,7 @@ async function confirmEvening() {
   dataChanged();
   preview = null;
   $('#pasteInput').value = '';
-  $('#previewArea').innerHTML = '<div class="notice notice-ok">Abend ' + esc(fmtDateDE(evening.date)) + ' wurde ' + what + ' (' + Object.keys(evening.assignments).length + ' Personen' + (evening.gaeste && evening.gaeste.length ? ', ' + evening.gaeste.length + ' Gäste' : '') + ').</div>';
+  $('#previewArea').innerHTML = '<div class="notice notice-ok">Dienst ' + esc(fmtDateDE(evening.date)) + ' wurde ' + what + ' (' + Object.keys(evening.assignments).length + ' Personen' + (evening.gaeste && evening.gaeste.length ? ', ' + evening.gaeste.length + ' Gäste' : '') + ').</div>';
 }
 
 /* ===================== Abende-Ansicht ===================== */
@@ -2304,13 +2328,13 @@ function renderEvenings() {
     return `<tr><td>${esc(fmtDateDE(ev.date))}</td><td class="num">${Object.keys(ev.assignments).length}</td>
       <td class="num" title="${esc((ev.gaeste || []).map(gastName).join(', '))}">${gastN || ''}</td><td>${esc(catTxt)}</td>
       <td><button class="btn btn-sm" data-open-ev="${ev.date}">Öffnen</button> <button class="btn btn-sm btn-danger" data-del-ev="${ev.date}">Löschen</button></td></tr>`;
-  }).join('') || '<tr><td colspan="5" class="muted">Noch keine Abende erfasst.</td></tr>';
+  }).join('') || '<tr><td colspan="5" class="muted">Noch keine Dienste erfasst.</td></tr>';
 
   $('#eveningsTable tbody').onclick = async e => {
     const openBtn = e.target.closest('[data-open-ev]'), delBtn = e.target.closest('[data-del-ev]');
     if (openBtn) renderEveningDetail(openBtn.dataset.openEv);
     if (delBtn) {
-      const ok = await showDialog('<h3>Abend löschen?</h3><p>Der Abend ' + esc(fmtDateDE(delBtn.dataset.delEv)) + ' wird mit allen Zuordnungen gelöscht.</p>',
+      const ok = await showDialog('<h3>Dienst löschen?</h3><p>Der Dienst ' + esc(fmtDateDE(delBtn.dataset.delEv)) + ' wird mit allen Zuordnungen gelöscht.</p>',
         [{ label: 'Löschen', value: true, danger: true }, { label: 'Abbrechen', value: false }]);
       if (ok) {
         data.evenings = data.evenings.filter(ev => ev.date !== delBtn.dataset.delEv);
@@ -2340,7 +2364,7 @@ function renderGaesteView() {
     { key: 'unbekannt', label: '?', num: true }
   ];
   $('#gaesteTable thead').innerHTML = '<tr>' + cols.map(c =>
-    `<th class="sortable" data-key="${c.key}" ${c.key === 'unbekannt' ? 'title="Alt-Einsätze mit unbekannter Kategorie (vor Version 4 erfasst)"' : ''}>${esc(c.label)}${gaesteSort.key === c.key ? ' <span class="sort-arrow">' + (gaesteSort.dir > 0 ? '▲' : '▼') + '</span>' : ''}</th>`
+    `<th class="sortable${c.num ? ' num' : ''}" data-key="${c.key}" ${c.key === 'unbekannt' ? 'title="Alt-Einsätze mit unbekannter Kategorie (vor Version 4 erfasst)"' : ''}>${esc(c.label)}${gaesteSort.key === c.key ? ' <span class="sort-arrow">' + (gaesteSort.dir > 0 ? '▲' : '▼') + '</span>' : ''}</th>`
   ).join('') + '</tr>';
   $('#gaesteTable thead').onclick = e => {
     const th = e.target.closest('th[data-key]');
@@ -2380,13 +2404,13 @@ function renderEveningDetail(date) {
   }).join('');
   const addOpts = data.people.filter(p => !pids.has(p.id)).sort((a, b) => (a.nachname + a.vorname).localeCompare(b.nachname + b.vorname))
     .map(p => `<option value="${esc(p.id)}">${esc(personLabel(p))}</option>`).join('');
-  $('#eveningDetail').innerHTML = `<div class="card"><div class="card-title"><h3>Abend ${esc(fmtDateDE(date))} bearbeiten</h3>
+  $('#eveningDetail').innerHTML = `<div class="card"><div class="card-title"><h3>Dienst ${esc(fmtDateDE(date))} bearbeiten</h3>
     <button class="btn" id="btnCloseEvDetail">Schließen</button></div>
     <div class="table-wrap"><table class="data"><thead><tr><th>Person</th><th>Kategorien</th><th>Faktor/Anwesenheit (leer = automatisch)</th><th></th></tr></thead>
     <tbody>${rows}</tbody></table></div>
     <div class="toolbar" style="margin-top:var(--sp-3)"><select id="evAddPerson"><option value="">– Person hinzufügen –</option>${addOpts}</select>
     <button class="btn btn-sm" id="btnEvAdd">Hinzufügen</button></div>
-    <h3 style="margin-top:var(--sp-4)">Gäste des Abends</h3>
+    <h3 style="margin-top:var(--sp-4)">Gäste des Dienstes</h3>
     ${(ev.gaeste || []).map((g, i) => {
       const kats = (typeof g === 'object' && Array.isArray(g.kats) && g.kats.length) ? g.kats : null;
       return `<div class="toolbar"><strong>${esc(gastName(g))}</strong> ` +
@@ -2676,7 +2700,7 @@ function openCategoryForm(cid, presetCode) {
   };
   if (cid && $('#cfDelete')) $('#cfDelete').onclick = async () => {
     const used = data.evenings.some(ev => Object.values(ev.assignments).some(list => list.some(e => e.kat === cid)));
-    const ok = await showDialog('<h3>Kategorie löschen?</h3><p>' + (used ? 'Achtung: Diese Kategorie ist in erfassten Abenden enthalten; die Einträge bleiben dann unzugeordnet. ' : '') + 'Wirklich löschen?</p>',
+    const ok = await showDialog('<h3>Kategorie löschen?</h3><p>' + (used ? 'Achtung: Diese Kategorie ist in erfassten Diensten enthalten; die Einträge bleiben dann unzugeordnet. ' : '') + 'Wirklich löschen?</p>',
       [{ label: 'Löschen', value: true, danger: true }, { label: 'Abbrechen', value: false }]);
     if (ok) {
       data.categories = data.categories.filter(c => c.id !== cid);
@@ -2719,7 +2743,7 @@ $('#btnExcelImport').addEventListener('click', async () => {
 function renderExcelImportConfirm(res) {
   const area = $('#excelImportArea');
   const st = computeStats(res.data);
-  area.innerHTML = `<div class="notice"><strong>Import-Vorschau:</strong> ${res.data.people.length} Personen, ${res.data.evenings.length} Abende.
+  area.innerHTML = `<div class="notice"><strong>Import-Vorschau:</strong> ${res.data.people.length} Personen, ${res.data.evenings.length} Dienste.
     ${res.warnings.length ? '<br>Hinweise:<br>' + res.warnings.map(esc).join('<br>') : ''}</div>
     <fieldset><legend>DF-Berechtigung bestätigen</legend>
     <p class="hint">Diese Personen haben im Altbestand DF-Dienste. Bitte ankreuzen, wer dauerhaft DF-berechtigt ist.</p>
@@ -2730,7 +2754,7 @@ function renderExcelImportConfirm(res) {
   $('#btnCancelImport').onclick = () => { area.innerHTML = ''; };
   $('#btnApplyImport').onclick = async () => {
     if (data.evenings.length || data.people.length) {
-      const ok = await showDialog('<h3>Aktuelle Daten ersetzen?</h3><p>Der Excel-Import ersetzt alle aktuell geladenen Daten (' + data.people.length + ' Personen, ' + data.evenings.length + ' Abende).</p>',
+      const ok = await showDialog('<h3>Aktuelle Daten ersetzen?</h3><p>Der Excel-Import ersetzt alle aktuell geladenen Daten (' + data.people.length + ' Personen, ' + data.evenings.length + ' Dienste).</p>',
         [{ label: 'Ersetzen', value: true, danger: true }, { label: 'Abbrechen', value: false }]);
       if (!ok) return;
     }
@@ -2740,7 +2764,7 @@ function renderExcelImportConfirm(res) {
       if (p) p.df = !!(cb && cb.checked);
     }
     data = res.data;
-    area.innerHTML = '<div class="notice notice-ok">Import übernommen: ' + data.people.length + ' Personen, ' + data.evenings.length + ' Abende.</div>';
+    area.innerHTML = '<div class="notice notice-ok">Import übernommen: ' + data.people.length + ' Personen, ' + data.evenings.length + ' Dienste.</div>';
     dataChanged();
   };
 }
@@ -2779,7 +2803,7 @@ $('#btnExcelExport').addEventListener('click', () => {
       rawRows.push([ev.date, gastName(g), '', '(Gast) ' + kats, '']);
     }
   }
-  XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(rawRows), 'Abende');
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(rawRows), 'Dienste');
 
   const sdRows = [['Nachname', 'Vorname', 'Fahrlizenz', 'Stufe', 'Status', 'DF', 'Austritt', 'Aliasse']];
   for (const p of data.people) sdRows.push([p.nachname, p.vorname, p.fahrlizenz, p.stufe || '', p.status, p.df ? 'ja' : '', p.austritt || '', (p.aliases || []).join(', ')]);
@@ -2808,7 +2832,7 @@ function renderCheckPanel() {
   const panel = $('#checkPanel');
   const item = (f, quittierbar) => {
     const links = [];
-    if (f.evDate) links.push(`<a href="#" data-goto-ev="${esc(f.evDate)}">zum Abend</a>`);
+    if (f.evDate) links.push(`<a href="#" data-goto-ev="${esc(f.evDate)}">zum Dienst</a>`);
     if (f.personId) links.push(`<a href="#" data-goto-person="${esc(f.personId)}">zur Person</a>`);
     return `<li><span class="chip ${f.typ === 'fehler' ? 'chip-err' : 'chip-warn'}">${f.typ === 'fehler' ? 'Fehler' : 'Hinweis'}</span>` +
       `<span>${esc(f.text)}${links.length ? ' · ' + links.join(' · ') : ''}</span>` +
@@ -2866,7 +2890,7 @@ function renderReport() {
   const stichtag = String(heute.getDate()).padStart(2, '0') + '.' + String(heute.getMonth() + 1).padStart(2, '0') + '.' + heute.getFullYear();
 
   let html = '<h1>Zug 11 Statistik</h1>' +
-    '<div class="report-sub">Stichtag ' + stichtag + ' · ' + stats.evenings + ' erfasste Abende</div>';
+    '<div class="report-sub">Stichtag ' + stichtag + ' · ' + stats.evenings + ' erfasste Dienste</div>';
 
   /* Heatmap in voller Skala (mix 0) */
   const heatTd = pct => pct === null || pct === undefined ? '' : ' style="background:' + heatCss(pct, 0) + '"';

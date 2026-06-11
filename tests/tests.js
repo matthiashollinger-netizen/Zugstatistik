@@ -361,9 +361,9 @@ function P(id, fahrlizenz, stufe, extra) {
   assertEq(eveningsSince(stats, stats.perPerson.pa.lastCat['RTW']), 3, 'RTW vor 3 Abenden');
   assertEq(eveningsSince(stats, stats.perPerson.pa.lastCat['KTW']), 0, 'KTW beim letzten Abend → 0');
   assertEq(eveningsSince(stats, null), null, 'nie → null');
-  assertEq(fmtVorN(3), 'vor 3 Abenden', 'Format N');
-  assertEq(fmtVorN(1), 'vor 1 Abend', 'Format Singular');
-  assertEq(fmtVorN(0), 'beim letzten Abend', 'Format 0');
+  assertEq(fmtVorN(3), 'vor 3 Diensten', 'Format N (UI-Begriff „Dienst“)');
+  assertEq(fmtVorN(1), 'vor 1 Dienst', 'Format Singular');
+  assertEq(fmtVorN(0), 'beim letzten Dienst', 'Format 0');
   assertEq(fmtVorN(null), 'nie', 'Format nie');
 })();
 
@@ -485,6 +485,24 @@ function P(id, fahrlizenz, stufe, extra) {
   assert(rows[1].ohneBerechtigung === true, 'DF-Dienste ohne Häkchen werden markiert');
   assert(rows[2].ohneBerechtigung === false && rows[2].dfDienste === 0, 'Häkchen ohne Dienste: normale Zeile mit 0');
   assert(approx(rows[0].dienste, 2), 'DF zählt unverändert in die Gesamt-Dienste');
+  /* DF % = DF-Dienste ÷ Gesamt-Dienste der Person (≠ Bilanz „Anteil an allen DF“) */
+  assert(approx(rows[0].dfPct, 1), '„mit“: 2 von 2 Diensten sind DF → 100 %');
+  assert(approx(rows[1].dfPct, 1), '„ohne_haken“: 1 von 1 → 100 % (obwohl Bilanz nur 33 %)');
+  assertEq(rows[2].dfPct, null, 'ohne Dienste kein DF % (–)');
+})();
+
+/* ============ DF %: Faktor-gewichtet wie alle Kategorie-Prozente ============ */
+(function () {
+  const data = defaultData();
+  data.people.push(P('pa', 'B3', 'RS2', { df: true }));
+  data.evenings.push({ date: '2026-01-05', assignments: { pa: A('DF') }, partials: { pa: 0.5 } }); // halber DF
+  data.evenings.push({ date: '2026-01-12', assignments: { pa: A('KTW') } });
+  data.evenings.push({ date: '2026-01-19', assignments: { pa: A('KTW') } });
+  const rows = dfStatistik(data, computeStats(data));
+  assert(approx(rows[0].dfDienste, 0.5), 'halber DF-Dienst zählt 0,5');
+  assert(approx(rows[0].dienste, 2.5), 'Gesamt-Dienste Faktor-gewichtet (0,5 + 1 + 1)');
+  assert(approx(rows[0].dfPct, 0.2), 'DF % = 0,5 / 2,5 = 20 %');
+  assert(approx(rows[0].anteil, 1), 'Bilanz: 100 % aller DF-Dienste (Abgrenzung zur DF-%-Spalte)');
 })();
 
 /* ============ Gäste: Aggregation inkl. „?“-Spalte ============ */
