@@ -38,10 +38,11 @@ Auf die rote Schaltfläche **„Statistik-Datei öffnen …“** klicken.
 
 ### Schritt 5 — Datei auswählen
 
-Im Fenster, das aufgeht, den **geteilten OneDrive-Ordner** des Zuges öffnen,
-die Datei **`Statistik.json`** anklicken und auf **„Öffnen“**.
+Im Fenster, das aufgeht, den **geteilten Ordner** des Zuges öffnen
+(`RKT-020-Zug11 › Dokumente › General`), die Datei **`Statistik.json`**
+anklicken und auf **„Öffnen“**.
 
-![Platzhalter: geteilter OneDrive-Ordner mit der Datei Statistik.json](img/start-5-platzhalter.svg)
+![Geteilter Ordner RKT-020-Zug11 › Dokumente › General mit der Datei Statistik.json](img/start-5-ordner.svg)
 
 > Falls Edge fragt, ob die Website die Datei bearbeiten darf: auf
 > **„Bearbeiten zulassen“** klicken.
