@@ -319,8 +319,7 @@ legend{font-size:var(--fs-sm);font-weight:600;padding:0 var(--sp-2);color:var(--
     <!-- Gast-Quote (aus der Abende-Ansicht hierher umgezogen) -->
     <div id="gastInfo"></div>
     <p class="hint">Reine Statistik — wer hilft oft aus, und mit welchem Fahrzeug-Verhältnis
-    (z. B. um einem fleißigen Gast einmal einen RTW zu geben). „?“ = Alt-Einsätze, deren
-    Kategorie vor Version 4 nicht erfasst wurde.</p>
+    (z. B. um einem fleißigen Gast einmal einen RTW zu geben).</p>
     <div class="table-wrap"><table class="data num-center" id="gaesteTable"><thead></thead><tbody></tbody></table></div>
   </div>
 </section>
@@ -700,8 +699,9 @@ function computeGastStats(data) {
 
 /* ===== FEATURE: Gäste-Ansicht — Aggregation je Gast =====
    Je Gast: Einsätze gesamt, je Kategorie die Summe der Werte (Kombi ÄBD/ZBV
-   zählt je 0,5; Zeitfaktoren gelten bei Gästen nicht) plus „?“ für
-   Alt-Einsätze mit unbekannter Kategorie (kats: null). */
+   zählt je 0,5; Zeitfaktoren gelten bei Gästen nicht). Alt-Einsätze ohne
+   Kategorie (kats: null) werden weiterhin als `unbekannt` gezählt — in der
+   Tabelle aber nicht mehr als eigene Spalte angezeigt. */
 function gastTabelle(data) {
   const byKey = new Map();
   for (const ev of (data.evenings || [])) {
@@ -2362,11 +2362,12 @@ function renderGaesteView() {
   const katCols = data.categories.map(c => ({ key: 'kat_' + c.id, label: c.label, cat: c.id }));
   const cols = [
     { key: 'name', label: 'Name' }, { key: 'einsaetze', label: 'Einsätze', num: true },
-    ...katCols.map(c => ({ ...c, num: true })),
-    { key: 'unbekannt', label: '?', num: true }
+    ...katCols.map(c => ({ ...c, num: true }))
   ];
+  /* Sortierzustand überlebt entfernte Spalten (z. B. die frühere „?“-Spalte) */
+  if (!cols.some(c => c.key === gaesteSort.key)) gaesteSort = { key: 'einsaetze', dir: -1 };
   $('#gaesteTable thead').innerHTML = '<tr>' + cols.map(c =>
-    `<th class="sortable${c.num ? ' num' : ''}" data-key="${c.key}" ${c.key === 'unbekannt' ? 'title="Alt-Einsätze mit unbekannter Kategorie (vor Version 4 erfasst)"' : ''}>${esc(c.label)}${gaesteSort.key === c.key ? ' <span class="sort-arrow">' + (gaesteSort.dir > 0 ? '▲' : '▼') + '</span>' : ''}</th>`
+    `<th class="sortable${c.num ? ' num' : ''}" data-key="${c.key}">${esc(c.label)}${gaesteSort.key === c.key ? ' <span class="sort-arrow">' + (gaesteSort.dir > 0 ? '▲' : '▼') + '</span>' : ''}</th>`
   ).join('') + '</tr>';
   $('#gaesteTable thead').onclick = e => {
     const th = e.target.closest('th[data-key]');
@@ -2375,7 +2376,7 @@ function renderGaesteView() {
     else gaesteSort = { key: th.dataset.key, dir: th.dataset.key === 'name' ? 1 : -1 };
     renderGaesteView();
   };
-  const val = (r, key) => key === 'name' ? r.name.toLowerCase() : key === 'einsaetze' ? r.einsaetze : key === 'unbekannt' ? r.unbekannt : (r.counts[key.slice(4)] || 0);
+  const val = (r, key) => key === 'name' ? r.name.toLowerCase() : key === 'einsaetze' ? r.einsaetze : (r.counts[key.slice(4)] || 0);
   rows.sort((a, b) => {
     const va = val(a, gaesteSort.key), vb = val(b, gaesteSort.key);
     return (va < vb ? -1 : va > vb ? 1 : 0) * gaesteSort.dir || a.name.localeCompare(b.name, 'de');
@@ -2383,7 +2384,7 @@ function renderGaesteView() {
   $('#gaesteTable tbody').innerHTML = rows.map(r =>
     `<tr><td>${esc(r.name)}</td><td class="num">${r.einsaetze}</td>` +
     katCols.map(c => `<td class="num">${r.counts[c.cat] ? fmtZahl(r.counts[c.cat]) : ''}</td>`).join('') +
-    `<td class="num muted">${r.unbekannt || ''}</td></tr>`
+    '</tr>'
   ).join('') || '<tr><td colspan="99" class="muted">Noch keine Gäste erfasst.</td></tr>';
 }
 

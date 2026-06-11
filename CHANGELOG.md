@@ -20,7 +20,8 @@ Zählregeln oder gespeicherten Daten.
   Aufklappen; Platz 1 deutlich hervorgehoben. Ranking-Logik, TF×RTW-Regel
   und „wenig Daten“-Badge unverändert.
 * **Gäste-Tabelle:** Zahlenspalten samt Köpfen mittig ausgerichtet (eigener
-  Tabellen-Modifier, andere Tabellen unberührt).
+  Tabellen-Modifier, andere Tabellen unberührt). Die „?“-Spalte (Alt-Einsätze
+  ohne Kategorie) wurde später entfernt — wird nicht benötigt.
 * **TF × RTW mit NFS-Ausnahme:** Im Eignungs-Filter „Transportführer × RTW“
   und in der RTW-Dran-Karte bleiben NFS-Fahrer (B3 + NFS) jetzt gelistet —
   jeder RTW braucht mindestens einen NFS, der üblicherweise als TF mitfährt.

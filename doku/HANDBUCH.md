@@ -183,14 +183,12 @@ Alt-Einträge die **Kategorie nachtragen**.
 
 ### 4.4 Gäste
 
-![Gäste-Ansicht: Gast-Quote und Tabelle je Gast mit Kategorien und „?“-Spalte](img/gaeste.png)
+![Gäste-Ansicht: Gast-Quote und Tabelle je Gast mit Kategorien](img/gaeste.png)
 
 Oben die **Gast-Quote** (wie viele Crew-Plätze von Gästen gefüllt wurden),
-darunter je Gast die Einsätze nach Kategorie. Die Spalte **„?“** zählt
-Alt-Einsätze, deren Kategorie vor Version 4 noch nicht erfasst wurde. Bewusst
-reine Statistik (keine Verwaltung) — damit man sieht, wer oft aushilft und mit
-welchem Fahrzeug-Verhältnis (z. B. um einem fleißigen Gast einmal einen RTW zu
-geben).
+darunter je Gast die Einsätze nach Kategorie. Bewusst reine Statistik (keine
+Verwaltung) — damit man sieht, wer oft aushilft und mit welchem
+Fahrzeug-Verhältnis (z. B. um einem fleißigen Gast einmal einen RTW zu geben).
 
 ### 4.5 Personen
 
