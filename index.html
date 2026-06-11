@@ -1063,11 +1063,13 @@ function rankDran(candidates, stats, catId) {
 /* ===== FEATURE: TF × RTW ohne B3-Fahrer =====
    TF-Kandidaten einer Kategorie. Bei RTW werden B3-Fahrer ausgeschlossen —
    sie werden als Fahrer am RTW gebraucht (Fußnote im UI nennt die Anzahl).
+   Ausnahme: NFS-Fahrer bleiben gelistet — jeder RTW braucht mindestens einen
+   NFS, der üblicherweise als TF mitfährt.
    Alle anderen Kategorien (z. B. KTW) zeigen weiterhin alle TF-Geeigneten. */
 function tfKandidaten(cat, people) {
   const alle = people.filter(p => darfTf(p, cat));
   if (cat.id !== 'RTW') return { kandidaten: alle, ausgeblendet: 0 };
-  const kandidaten = alle.filter(p => p.fahrlizenz !== 'B3');
+  const kandidaten = alle.filter(p => p.fahrlizenz !== 'B3' || p.stufe === 'NFS');
   return { kandidaten, ausgeblendet: alle.length - kandidaten.length };
 }
 
@@ -1813,7 +1815,7 @@ function renderDranCards(stats) {
       /* FEATURE: TF × RTW — B3-Fahrer aus der TF-Spalte ausblenden */
       const tk = tfKandidaten(cat, aktive);
       cols.push({ key: 'tf', titel: 'als TF dran', cands: tk.kandidaten,
-        fussnote: tk.ausgeblendet ? tk.ausgeblendet + ' B3-Fahrer ausgeblendet (werden als Fahrer am ' + cat.label + ' gebraucht)' : '' });
+        fussnote: tk.ausgeblendet ? tk.ausgeblendet + ' B3-Fahrer ausgeblendet (werden als Fahrer am ' + cat.label + ' gebraucht; NFS bleiben gelistet)' : '' });
     }
     if (!cols.length) continue;
     html += `<div class="dran-card"><h3>Wer ist dran? — ${esc(cat.label)}</h3><div class="dran-cols">`;
@@ -1877,7 +1879,7 @@ function renderDashboard() {
     /* FEATURE: TF × RTW — B3-Fahrer ausgeblendet (Fußnote) */
     const tk = tfKandidaten(filterKat, people);
     people = tk.kandidaten;
-    if (tk.ausgeblendet) filterHint = tk.ausgeblendet + ' B3-Fahrer ausgeblendet (werden als Fahrer am ' + filterKat.label + ' gebraucht)';
+    if (tk.ausgeblendet) filterHint = tk.ausgeblendet + ' B3-Fahrer ausgeblendet (werden als Fahrer am ' + filterKat.label + ' gebraucht; NFS bleiben gelistet)';
   }
   else if (filterKat && rolle) people = people.filter(p => darfRolle(p, filterKat));
   else if (filterKat) people = people.filter(p => isEligible(p, filterKat));

@@ -577,12 +577,13 @@ function P(id, fahrlizenz, stufe, extra) {
   const df = data.categories.find(c => c.id === 'DF');
   assert(isEligible(data.people[2], df) && !isEligible(data.people[0], df), 'DF-Berechtigung über df-Häkchen');
 
-  /* FEATURE: TF × RTW — B3-Fahrer werden als Fahrer gebraucht */
+  /* FEATURE: TF × RTW — B3-Fahrer werden als Fahrer gebraucht; Ausnahme NFS
+     (jeder RTW braucht mindestens einen NFS, der meist als TF mitfährt) */
   const ktw = data.categories.find(c => c.id === 'KTW');
   const leute = [P('b3nfs', 'B3', 'NFS'), P('b3rs2', 'B3', 'RS2'), P('rs2', 'keine', 'RS2'), P('b2nfs', 'B2', 'NFS'), P('offen', 'B3', null)];
   const tkRtw = tfKandidaten(rtw, leute);
-  assertEq(tkRtw.kandidaten.map(p => p.id), ['rs2', 'b2nfs'], 'RTW-TF: B3-Fahrer ausgeschlossen, stufe=null sowieso nicht TF');
-  assertEq(tkRtw.ausgeblendet, 2, '2 B3-Fahrer ausgeblendet (für die Fußnote)');
+  assertEq(tkRtw.kandidaten.map(p => p.id), ['b3nfs', 'rs2', 'b2nfs'], 'RTW-TF: B3-Fahrer ausgeschlossen — außer NFS; stufe=null sowieso nicht TF');
+  assertEq(tkRtw.ausgeblendet, 1, 'nur der B3-Fahrer ohne NFS ausgeblendet (für die Fußnote)');
   const tkKtw = tfKandidaten(ktw, leute);
   assertEq(tkKtw.kandidaten.map(p => p.id), ['b3nfs', 'b3rs2', 'rs2', 'b2nfs'], 'KTW-TF: weiterhin alle TF-Geeigneten');
   assertEq(tkKtw.ausgeblendet, 0, 'KTW: niemand ausgeblendet');

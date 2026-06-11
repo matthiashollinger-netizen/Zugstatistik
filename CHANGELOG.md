@@ -21,6 +21,10 @@ Zählregeln oder gespeicherten Daten.
   und „wenig Daten“-Badge unverändert.
 * **Gäste-Tabelle:** Zahlenspalten samt Köpfen mittig ausgerichtet (eigener
   Tabellen-Modifier, andere Tabellen unberührt).
+* **TF × RTW mit NFS-Ausnahme:** Im Eignungs-Filter „Transportführer × RTW“
+  und in der RTW-Dran-Karte bleiben NFS-Fahrer (B3 + NFS) jetzt gelistet —
+  jeder RTW braucht mindestens einen NFS, der üblicherweise als TF mitfährt.
+  Ausgeblendet werden nur noch B3-Fahrer ohne NFS (Fußnote entsprechend).
 
 ## v1.2.1 — 2026-06-11
 
