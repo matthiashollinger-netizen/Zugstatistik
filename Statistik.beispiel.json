@@ -1,5 +1,5 @@
 {
-  "version": 3,
+  "version": 4,
   "categories": [
     { "id": "RTW", "label": "RTW", "matchPrefixes": ["R"], "matchCodes": [], "fairness": true, "eligibleFahrer": ["B3"], "eligibleTf": ["RS2", "NFS"] },
     { "id": "KTW", "label": "KTW", "matchPrefixes": ["K"], "matchCodes": [], "fairness": false, "eligibleFahrer": ["A", "B2", "B3"], "eligibleTf": ["RS1", "RS2", "NFS"] },
@@ -8,6 +8,7 @@
     { "id": "DF", "label": "DF", "matchPrefixes": [], "matchCodes": ["DF"], "fairness": true, "eligibleFlag": "df" }
   ],
   "gastListe": ["Xaver Probst", "Yvonne Schauer"],
+  "quittierungen": [],
   "people": [
     { "id": "p_almberger_greta", "nachname": "Almberger", "vorname": "Greta", "fahrlizenz": "B3", "stufe": null, "qualifikationAlt": "B3", "status": "aktiv", "df": false, "austritt": null, "aliases": [] },
     { "id": "p_bachner_tobias", "nachname": "Bachner", "vorname": "Tobias", "fahrlizenz": "keine", "stufe": "RS2", "status": "aktiv", "df": false, "austritt": null, "aliases": ["Tobi Bachner"] },
@@ -57,7 +58,7 @@
         "p_gruberbauer_jonas": [{ "kat": "KTW", "rolle": null }],
         "p_ebner_karl": [{ "kat": "DF", "rolle": null }]
       },
-      "gaeste": ["Xaver Probst"]
+      "gaeste": [{ "name": "Xaver Probst", "kats": null }]
     },
     {
       "date": "2026-01-27",
@@ -70,7 +71,10 @@
         "p_cerny_paul": [{ "kat": "DF", "rolle": null }]
       },
       "partials": { "p_almberger_greta": 1 },
-      "gaeste": ["Xaver Probst", "Yvonne Schauer"]
+      "gaeste": [
+        { "name": "Xaver Probst", "kats": [{ "kat": "RTW", "wert": 1 }], "rolle": "p2" },
+        { "name": "Yvonne Schauer", "kats": [{ "kat": "KTW", "wert": 1 }], "rolle": "tf" }
+      ]
     },
     {
       "date": "2026-02-03",

@@ -229,6 +229,7 @@ legend{font-size:var(--fs-sm);font-weight:600;padding:0 var(--sp-2);color:var(--
     <button data-view="dashboard" class="is-active">Dashboard</button>
     <button data-view="erfassen">Abend erfassen</button>
     <button data-view="abende">Abende</button>
+    <button data-view="gaeste">Gäste</button>
     <button data-view="personen">Personen</button>
     <button data-view="kategorien">Kategorien</button>
     <button data-view="datei">Datei &amp; Excel<span class="nav-badge" id="checkBadge" hidden></span></button>
@@ -265,8 +266,15 @@ legend{font-size:var(--fs-sm);font-weight:600;padding:0 var(--sp-2);color:var(--
       <span><span class="swatch" style="background:var(--heat-low)"></span>0 %</span>
       <span><span class="swatch" style="background:var(--heat-mid)"></span>50 %</span>
       <span><span class="swatch" style="background:var(--heat-high)"></span>100 %</span>
-      <span>%-Werte = Anteil an Diensten (Summe kann über 100 % liegen); Teil-Dienste zählen mit ihrem Faktor</span>
+      <span>%-Werte = Anteil an Diensten (Summe = 100 %; ÄBD/ZBV-Kombi zählt je 0,5); Teil-Dienste zählen mit ihrem Faktor</span>
     </div>
+  </div>
+  <!-- FEATURE: DF-Statistik (provisorisch — Layout-Review durch das Kommando) -->
+  <div class="card" id="dfCard" hidden>
+    <div class="card-title"><h3>DF-Statistik</h3></div>
+    <p class="hint">Bilanz der DF-Dienste untereinander (Anteile summieren sich auf 100 %).
+    DF-Dienste zählen unverändert in die Gesamt-Dienste der Person.</p>
+    <div class="table-wrap"><table class="data" id="dfTable"><thead></thead><tbody></tbody></table></div>
   </div>
 </section>
 
@@ -288,11 +296,22 @@ legend{font-size:var(--fs-sm);font-weight:600;padding:0 var(--sp-2);color:var(--
 <section class="view" id="view-abende">
   <div class="card">
     <div class="card-title"><h2>Erfasste Abende</h2></div>
-    <!-- FEATURE: Gast-Quote (kompakter Kopfbereich) -->
-    <div id="gastInfo"></div>
     <div class="table-wrap"><table class="data" id="eveningsTable"><thead></thead><tbody></tbody></table></div>
   </div>
   <div id="eveningDetail"></div>
+</section>
+
+<!-- ================= FEATURE: Gäste-Ansicht ================= -->
+<section class="view" id="view-gaeste">
+  <div class="card">
+    <div class="card-title"><h2>Gäste</h2></div>
+    <!-- Gast-Quote (aus der Abende-Ansicht hierher umgezogen) -->
+    <div id="gastInfo"></div>
+    <p class="hint">Reine Statistik — wer hilft oft aus, und mit welchem Fahrzeug-Verhältnis
+    (z. B. um einem fleißigen Gast einmal einen RTW zu geben). „?“ = Alt-Einsätze, deren
+    Kategorie vor Version 4 nicht erfasst wurde.</p>
+    <div class="table-wrap"><table class="data" id="gaesteTable"><thead></thead><tbody></tbody></table></div>
+  </div>
 </section>
 
 <!-- ================= Personen ================= -->
@@ -403,17 +422,19 @@ function defaultCategories() {
 }
 
 function defaultData() {
-  return { version: 3, categories: defaultCategories(), gastListe: [], people: [], evenings: [] };
+  return { version: 4, categories: defaultCategories(), gastListe: [], quittierungen: [], people: [], evenings: [] };
 }
 
-/* ---------- Migration v1 → v3 (verlustfrei & tolerant) ----------
+/* ---------- Migration v1 → v4 (verlustfrei & tolerant) ----------
    Unbekannte Felder bleiben unangetastet; fehlende Felder bekommen Defaults.
    Liefert true, wenn etwas migriert wurde (→ Hinweis im UI, Persistieren beim
-   nächsten Speichern). Eine v3-Datei läuft unverändert durch.
-   v2 → v3 ist strukturell identisch (nur Versionssprung): die partials-Map ist
-   ab v3 eine Faktor-Map — ein Faktor f ∈ (0, 1] je Person und Abend wirkt
-   einheitlich auf Anwesenheit, Dienste-Zählung und jede Kategorie des Abends
-   (siehe computeStats). Bestehende Werte behalten ihre Bedeutung. */
+   nächsten Speichern). Eine v4-Datei läuft unverändert durch.
+   v2 → v3: strukturell identisch — die partials-Map ist ab v3 eine Faktor-Map
+   (f ∈ (0, 1] je Person und Abend wirkt einheitlich auf Anwesenheit, Dienste
+   und Kategorien, siehe computeStats).
+   v3 → v4: gaeste je Abend werden Objekte {name, kats, rolle} — alte
+   String-Einträge bekommen kats: null (= Kategorie unbekannt); neu:
+   quittierungen [{key, datum}] für quittierte Datenprüfungs-Hinweise. */
 function migratePersonV2(p) {
   let changed = false;
   if (p.fahrlizenz === undefined && p.stufe === undefined) {
@@ -467,17 +488,55 @@ function migrateEveningV2(ev) {
       return e;
     });
   }
+  /* v4: Gäste als Objekte; alte Strings → Kategorie unbekannt (kats: null) */
+  if (Array.isArray(ev.gaeste)) {
+    ev.gaeste = ev.gaeste.map(g => {
+      if (typeof g === 'string') { changed = true; return { name: g, kats: null }; }
+      return g;
+    });
+  }
   return changed;
 }
 
 function migrateData(raw) {
-  let migrated = (raw.version || 1) < 3;
-  raw.version = 3;
+  let migrated = (raw.version || 1) < 4;
+  raw.version = 4;
   if (!Array.isArray(raw.gastListe)) raw.gastListe = [];
+  if (!Array.isArray(raw.quittierungen)) raw.quittierungen = [];
   for (const p of (raw.people || [])) migrated = migratePersonV2(p) || migrated;
   for (const c of (raw.categories || [])) migrated = migrateCategoryV2(c) || migrated;
   for (const ev of (raw.evenings || [])) migrated = migrateEveningV2(ev) || migrated;
   return migrated;
+}
+
+/* ===== FEATURE: 0-Werte-Bereinigung (beim Laden/Migrieren) =====
+   Gespeicherter Faktor/Anwesenheitswert 0 ohne Zuordnungen am selben Abend ist
+   ein redundanter Alt-Eintrag — Abwesenheit ergibt sich automatisch. Solche
+   Einträge werden entfernt und beziffert. Faktor 0 MIT Zuordnungen bleibt
+   unangetastet (roter Fehler in der Datenprüfung: gefahren, aber zählt 0). */
+function cleanupNullWerte(data) {
+  let entfernt = 0;
+  for (const ev of (data.evenings || [])) {
+    if (!ev.partials) continue;
+    for (const pid of Object.keys(ev.partials)) {
+      if (ev.partials[pid] === 0 && assignmentCats(ev, pid).length === 0) {
+        delete ev.partials[pid];
+        entfernt++;
+      }
+    }
+    if (!Object.keys(ev.partials).length) delete ev.partials;
+  }
+  return entfernt;
+}
+
+/* Gast-Eintrag tolerant lesen (v4-Objekt oder Alt-String) */
+function gastName(g) { return typeof g === 'string' ? g : (g && g.name) || ''; }
+
+/* Kategorie-Werte einer Tour: Kombi-Codes (ÄBD/ZBV) teilen den Einsatz —
+   je Kategorie 1/n, damit die Summe je Abend genau 1 ergibt. */
+function katWerte(catIds) {
+  const n = (catIds || []).length;
+  return (catIds || []).map(kat => ({ kat, wert: 1 / n }));
 }
 
 /* Kategorien-IDs eines Eintrags (v2: Liste von {kat, rolle}) */
@@ -607,7 +666,7 @@ function resolvePlanName(rawName, people, gastListe) {
 }
 
 /* ===== FEATURE: Gast-Quote ===== */
-/* Gast-Einsatz = ein Name in gaeste eines Abends (zählt nicht in die Statistik,
+/* Gast-Einsatz = ein Gast-Eintrag eines Abends (zählt nicht in die Statistik,
    nur für die Quote). Crew-Plätze = Mitglieder-Dienste + Gast-Einsätze. */
 function computeGastStats(data) {
   const byKey = new Map();
@@ -615,8 +674,8 @@ function computeGastStats(data) {
   for (const ev of (data.evenings || [])) {
     for (const g of (ev.gaeste || [])) {
       einsaetze++;
-      const k = normKey(g);
-      const e = byKey.get(k) || { name: normSpace(g), count: 0 };
+      const k = normKey(gastName(g));
+      const e = byKey.get(k) || { name: normSpace(gastName(g)), count: 0 };
       e.count++;
       byKey.set(k, e);
     }
@@ -624,9 +683,60 @@ function computeGastStats(data) {
       if (assignmentCats(ev, pid).length) memberSlots++;
     }
   }
-  const top = [...byKey.values()].sort((a, b) => b.count - a.count || a.name.localeCompare(b.name, 'de')).slice(0, 5);
   const slots = einsaetze + memberSlots;
-  return { einsaetze, verschiedene: byKey.size, anteil: slots > 0 ? einsaetze / slots : null, top };
+  return { einsaetze, verschiedene: byKey.size, anteil: slots > 0 ? einsaetze / slots : null };
+}
+
+/* ===== FEATURE: Gäste-Ansicht — Aggregation je Gast =====
+   Je Gast: Einsätze gesamt, je Kategorie die Summe der Werte (Kombi ÄBD/ZBV
+   zählt je 0,5; Zeitfaktoren gelten bei Gästen nicht) plus „?“ für
+   Alt-Einsätze mit unbekannter Kategorie (kats: null). */
+function gastTabelle(data) {
+  const byKey = new Map();
+  for (const ev of (data.evenings || [])) {
+    for (const g of (ev.gaeste || [])) {
+      const k = normKey(gastName(g));
+      if (!k) continue;
+      const e = byKey.get(k) || { name: normSpace(gastName(g)), einsaetze: 0, counts: {}, unbekannt: 0 };
+      e.einsaetze++;
+      const kats = (typeof g === 'object' && g) ? g.kats : null;
+      if (Array.isArray(kats) && kats.length) {
+        for (const { kat, wert } of kats) e.counts[kat] = (e.counts[kat] || 0) + (typeof wert === 'number' ? wert : 1);
+      } else {
+        e.unbekannt++;
+      }
+      byKey.set(k, e);
+    }
+  }
+  return [...byKey.values()].sort((a, b) => b.einsaetze - a.einsaetze || a.name.localeCompare(b.name, 'de'));
+}
+
+/* ===== FEATURE: DF-Statistik (eigene Tabelle, provisorisch) =====
+   Alle Personen mit DF-Häkchen oder DF-Diensten > 0; Anteil = Bilanz an allen
+   DF-Diensten (summiert sich auf 100 %). Personen mit DF-Diensten ohne
+   Häkchen werden markiert. DF zählt unverändert in die Gesamt-Dienste. */
+function dfStatistik(data, stats) {
+  const totalDf = stats.catTotals['DF'] || 0;
+  return (data.people || [])
+    .filter(p => p.df || (stats.perPerson[p.id] && stats.perPerson[p.id].catCounts['DF'] > 0))
+    .map(p => {
+      const s = stats.perPerson[p.id];
+      const dfDienste = (s && s.catCounts['DF']) || 0;
+      return {
+        p, dfDienste,
+        anteil: totalDf > 0 ? dfDienste / totalDf : null,
+        dienste: s ? s.dienste : 0,
+        ohneBerechtigung: !p.df && dfDienste > 0
+      };
+    })
+    .sort((a, b) => b.dfDienste - a.dfDienste || (a.p.nachname + a.p.vorname).localeCompare(b.p.nachname + b.p.vorname, 'de'));
+}
+
+/* Ausgrau-Regel der Kategorie-Spalten: Nicht-Berechtigte grau — außer KTW,
+   dort fahren auch Praktikanten als 2. Trspf. mit (KTW graut nie aus). */
+function istAusgegraut(person, cat) {
+  if (cat.id === 'KTW') return false;
+  return !isEligible(person, cat);
 }
 
 /* ---------- Tour-Code → Kategorie(n) ---------- */
@@ -810,10 +920,11 @@ function evFaktor(ev, pid) {
   const v = ev.partials && ev.partials[pid];
   return (v === undefined || v === null) ? 1 : v;
 }
-/* Zahl im de-AT-Format: Komma, maximal 1 Nachkommastelle, glatt ohne „,0“ */
+/* Zahl im de-AT-Format: Komma, bis zu 2 Nachkommastellen wo nötig (0,35),
+   glatte Werte ohne Nachkommastellen */
 function fmtZahl(x) {
   if (x === null || x === undefined) return '–';
-  const r = Math.round(x * 10) / 10;
+  const r = Math.round(x * 100) / 100;
   return Number.isInteger(r) ? String(r) : String(r).replace('.', ',');
 }
 
@@ -849,8 +960,11 @@ function computeStats(data) {
       if (hasCat) {
         const f = evFaktor(ev, p.id);
         s.dienste += f;
+        /* 0,5-Regel: mehrere Kategorien eines Abends (Kombi ÄBD/ZBV) teilen
+           sich den Dienst — je Kategorie f/n. Damit gilt die Invariante
+           Summe der Kategorie-Werte = Dienste (Prozentsummen nie über 100 %). */
         for (const cid of a) {
-          if (s.catCounts[cid] !== undefined) s.catCounts[cid] += f;
+          if (s.catCounts[cid] !== undefined) s.catCounts[cid] += f / a.length;
           s.lastCat[cid] = ev.date; // Abende sind aufsteigend sortiert
         }
       }
@@ -871,8 +985,9 @@ function computeStats(data) {
   for (const ev of evenings) {
     for (const pid of Object.keys(ev.assignments || {})) {
       const f = evFaktor(ev, pid);
-      for (const cid of assignmentCats(ev, pid)) {
-        if (result.catTotals[cid] !== undefined) result.catTotals[cid] += f;
+      const a = assignmentCats(ev, pid);
+      for (const cid of a) {
+        if (result.catTotals[cid] !== undefined) result.catTotals[cid] += f / a.length;
       }
     }
   }
@@ -965,18 +1080,18 @@ function heatCss(pct, mix) {
 
 /* ===== FEATURE: Datenprüfung (Konsistenz-Panel) =====
    Macht Auffälligkeiten sichtbar, korrigiert aber nie automatisch.
-   Hinweise (gelb) können Datenrealität sein — z. B. ist ein geteilter
-   DF-Dienst (2 DF an einem Abend) im Altbestand 5× belegt. */
+   Jeder Befund trägt einen stabilen key; Hinweise (gelb) sind darüber
+   quittierbar (data.quittierungen), Fehler (rot) nicht. */
 function checkData(data) {
-  const findings = []; // {typ:'hinweis'|'fehler', code, text, evDate?, personId?}
+  const findings = []; // {typ:'hinweis'|'fehler', code, key, text, evDate?, personId?}
   const stats = computeStats(data);
   const EPS = 1e-9;
 
   /* doppelte Abend-Daten (fehlende/ungültige fängt validateData beim Laden) */
   const seen = new Set();
   for (const ev of (data.evenings || [])) {
-    if (!ev.date) { findings.push({ typ: 'fehler', code: 'datum-fehlt', text: 'Ein Abend hat kein Datum.' }); continue; }
-    if (seen.has(ev.date)) findings.push({ typ: 'fehler', code: 'datum-doppelt', evDate: ev.date, text: 'Zwei Abende mit demselben Datum ' + fmtDateDE(ev.date) + '.' });
+    if (!ev.date) { findings.push({ typ: 'fehler', code: 'datum-fehlt', key: 'datum-fehlt', text: 'Ein Abend hat kein Datum.' }); continue; }
+    if (seen.has(ev.date)) findings.push({ typ: 'fehler', code: 'datum-doppelt', key: 'datum-doppelt:' + ev.date, evDate: ev.date, text: 'Zwei Abende mit demselben Datum ' + fmtDateDE(ev.date) + '.' });
     seen.add(ev.date);
   }
 
@@ -986,14 +1101,8 @@ function checkData(data) {
     /* Hinweis: mehr als 1 DF-Eintrag (kann gewollter geteilter Dienst sein) */
     const dfPids = pids.filter(pid => assignmentCats(ev, pid).includes('DF'));
     if (dfPids.length > 1) {
-      findings.push({ typ: 'hinweis', code: 'df-mehrfach', evDate: ev.date,
+      findings.push({ typ: 'hinweis', code: 'df-mehrfach', key: 'doppel-df:' + ev.date, evDate: ev.date,
         text: fmtDateDE(ev.date) + ': ' + dfPids.length + ' DF-Einträge (' + dfPids.map(nameOf).join(', ') + ') — kann ein gewollt geteilter Dienst sein.' });
-    }
-    /* Hinweis: ÄBD/ZBV-Kombi (eine Person zählt in beiden Kategorien) */
-    const kombi = pids.filter(pid => { const c = assignmentCats(ev, pid); return c.includes('ABD') && c.includes('ZBV'); });
-    if (kombi.length) {
-      findings.push({ typ: 'hinweis', code: 'abd-zbv', evDate: ev.date,
-        text: fmtDateDE(ev.date) + ': ÄBD/ZBV-Kombi (' + kombi.map(nameOf).join(', ') + ') — der Dienst zählt in beiden Kategorien, dadurch sind Prozent-Summen über 100 % möglich.' });
     }
     /* Fehler: Faktor außerhalb (0, 1] bzw. Anwesenheitswert außerhalb [0, 1] */
     for (const pid of Object.keys(ev.partials || {})) {
@@ -1001,39 +1110,50 @@ function checkData(data) {
       const hatDienst = assignmentCats(ev, pid).length > 0;
       if (hatDienst) {
         if (!(typeof v === 'number' && v > 0 && v <= 1)) {
-          findings.push({ typ: 'fehler', code: 'faktor', evDate: ev.date, personId: pid,
+          findings.push({ typ: 'fehler', code: 'faktor', key: 'faktor:' + ev.date + ':' + pid, evDate: ev.date, personId: pid,
             text: fmtDateDE(ev.date) + ': Faktor ' + JSON.stringify(v) + ' bei ' + nameOf(pid) + ' liegt außerhalb (0, 1].' });
         }
       } else if (!(typeof v === 'number' && v >= 0 && v <= 1)) {
-        findings.push({ typ: 'fehler', code: 'anwesenheitswert', evDate: ev.date, personId: pid,
+        findings.push({ typ: 'fehler', code: 'anwesenheitswert', key: 'anwesenheitswert:' + ev.date + ':' + pid, evDate: ev.date, personId: pid,
           text: fmtDateDE(ev.date) + ': Anwesenheitswert ' + JSON.stringify(v) + ' bei ' + nameOf(pid) + ' liegt außerhalb [0, 1].' });
       }
     }
   }
 
-  /* Hinweis: Personen mit „Stufe fehlt“ (gesammelt) */
-  const ohneStufe = (data.people || []).filter(p => p.status !== 'ausgetreten' && p.stufe == null);
-  if (ohneStufe.length) {
-    findings.push({ typ: 'hinweis', code: 'stufe-fehlt',
-      text: ohneStufe.length + (ohneStufe.length === 1 ? ' Person' : ' Personen') + ' ohne Stufe (' + ohneStufe.map(p => p.nachname + ' ' + p.vorname).join(', ') + ') — bis zur Nachpflege nicht TF-geeignet.' });
+  /* Hinweis: Person ohne Stufe — je Person quittierbar */
+  for (const p of (data.people || [])) {
+    if (p.status !== 'ausgetreten' && p.stufe == null) {
+      findings.push({ typ: 'hinweis', code: 'stufe-fehlt', key: 'stufe-fehlt:' + p.id, personId: p.id,
+        text: p.nachname + ' ' + p.vorname + ': Stufe fehlt — bis zur Nachpflege nicht TF-geeignet.' });
+    }
   }
 
-  /* Fehler je Person: einzelne Kategorie über den Diensten, Anwesenheit > 100 % */
+  /* Fehler je Person: Invariante (Summe Kategorien = Dienste), Anwesenheit > 100 % */
   for (const p of (data.people || [])) {
     const s = stats.perPerson[p.id];
     if (!s) continue;
-    for (const cid of Object.keys(s.catCounts)) {
-      if (s.catCounts[cid] > s.dienste + EPS) {
-        findings.push({ typ: 'fehler', code: 'kat-ueber-dienste', personId: p.id,
-          text: p.nachname + ' ' + p.vorname + ': ' + cid + '-Anzahl (' + fmtZahl(s.catCounts[cid]) + ') ist größer als die Dienste (' + fmtZahl(s.dienste) + ').' });
-      }
+    const katSumme = Object.values(s.catCounts).reduce((a, b) => a + b, 0);
+    if (Math.abs(katSumme - s.dienste) > 1e-6) {
+      findings.push({ typ: 'fehler', code: 'kategorien-summe', key: 'kategorien-summe:' + p.id, personId: p.id,
+        text: p.nachname + ' ' + p.vorname + ': Kategorie-Summe (' + fmtZahl(katSumme) + ') ≠ Dienste (' + fmtZahl(s.dienste) + ') — Invariante verletzt.' });
     }
     if (s.presencePct !== null && s.presencePct > 1 + EPS) {
-      findings.push({ typ: 'fehler', code: 'anwesenheit-ueber-100', personId: p.id,
+      findings.push({ typ: 'fehler', code: 'anwesenheit-ueber-100', key: 'anwesenheit-ueber-100:' + p.id, personId: p.id,
         text: p.nachname + ' ' + p.vorname + ': Anwesenheit über 100 % (' + fmtPct(s.presencePct) + ').' });
     }
   }
   return findings;
+}
+
+/* Befunde in offene und quittierte teilen — Fehler sind nie quittierbar */
+function offeneBefunde(findings, quittierungen) {
+  const quitt = new Set((quittierungen || []).map(q => q.key));
+  const offen = [], quittiert = [];
+  for (const f of findings) {
+    if (f.typ === 'hinweis' && quitt.has(f.key)) quittiert.push(f);
+    else offen.push(f);
+  }
+  return { offen, quittiert };
 }
 
 /* ---------- Excel-Import (arbeitet auf Zellen-Arrays, SheetJS-unabhängig) ---------- */
@@ -1204,7 +1324,7 @@ function upsertEvening(data, evening, mode) {
   if (evening.gaeste && evening.gaeste.length) {
     old.gaeste = old.gaeste || [];
     for (const g of evening.gaeste) {
-      if (!old.gaeste.some(x => normKey(x) === normKey(g))) old.gaeste.push(g);
+      if (!old.gaeste.some(x => normKey(gastName(x)) === normKey(gastName(g)))) old.gaeste.push(g);
     }
   }
   return 'zusammengeführt';
@@ -1310,16 +1430,20 @@ function manualModeReason() {
   return null;
 }
 
-/* Geladene Rohdaten validieren und (falls v1) auf Schema v2 migrieren.
-   Bei Migration: dezenter Hinweis; persistiert wird beim nächsten Speichern. */
+/* Geladene Rohdaten validieren, auf das aktuelle Schema migrieren und
+   redundante 0-Werte bereinigen. Bei Änderungen: dezenter Hinweis;
+   persistiert wird beim nächsten Speichern. */
 let loadWasMigrated = false;
 function applyLoadedData(raw) {
   const d = validateData(raw);
-  loadWasMigrated = migrateData(d);
+  const migrated = migrateData(d);
+  const bereinigt = cleanupNullWerte(d);
+  loadWasMigrated = migrated || bereinigt > 0;
   if (loadWasMigrated) {
     const banner = document.createElement('div');
     banner.className = 'notice notice-ok';
-    banner.innerHTML = 'Datei wurde auf Version 3 aktualisiert. ' +
+    banner.innerHTML = (migrated ? 'Datei wurde auf Version 4 aktualisiert. ' : '') +
+      (bereinigt ? bereinigt + ' redundante 0-Werte bereinigt (Abwesenheit ergibt sich automatisch). ' : '') +
       'Die Aktualisierung wird beim nächsten Speichern in die Datei übernommen. ' +
       '<button class="btn btn-sm" onclick="this.parentElement.remove()">OK</button>';
     $('.app-main').prepend(banner);
@@ -1714,7 +1838,6 @@ function renderDranCards(stats) {
 function renderDashboard() {
   const stats = computeStats(data);
   const cats = data.categories;
-  const fairCats = cats.filter(c => c.fairness);
 
   renderDranCards(stats);
 
@@ -1741,20 +1864,20 @@ function renderDashboard() {
   else if (rolle) people = people.filter(p => cats.some(c => !c.eligibleFlag && darfRolle(p, c)));
   $('#dashFilterHint').textContent = filterHint;
 
-  /* Kopf */
+  /* Kopf — Spalten je Kategorie ohne DF (eigene DF-Statistik-Karte) und ohne
+     „Zuletzt“-Spalten; die Zuletzt-Information lebt weiter in den Dran-Karten */
+  const spaltenCats = cats.filter(c => !c.eligibleFlag);
   const cols = [
     { key: 'nachname', label: 'Nachname' }, { key: 'vorname', label: 'Vorname' },
     { key: 'fahrlizenz', label: 'Lizenz' }, { key: 'stufe', label: 'Stufe' }, { key: 'status', label: 'Status' },
     { key: 'dienste', label: 'Dienste', num: true }, { key: 'presence', label: 'Anwesenheit %', num: true }
   ];
-  for (const c of cats) {
+  for (const c of spaltenCats) {
     cols.push({ key: 'cnt_' + c.id, label: c.label, num: true, cat: c.id });
     cols.push({ key: 'pct_' + c.id, label: c.label + ' %', num: true, cat: c.id });
   }
-  /* FEATURE: Zuletzt-Spalten für die Fairness-Kategorien */
-  for (const c of fairCats) {
-    cols.push({ key: 'last_' + c.id, label: c.label + ' zuletzt', num: true, cat: c.id });
-  }
+  /* Sortierzustand überlebt entfernte Spalten */
+  if (!cols.some(c => c.key === dashSort.key)) dashSort = { key: 'nachname', dir: 1 };
   $('#dashTable thead').innerHTML = '<tr>' + cols.map(c =>
     `<th class="sortable${c.key.startsWith('cnt_') || c.key.startsWith('last_') ? ' cat-cnt' : ''}${c.key.startsWith('pct_') ? ' cat-pct' : ''}" data-key="${c.key}">${esc(c.label)}${dashSort.key === c.key ? ' <span class="sort-arrow">' + (dashSort.dir > 0 ? '▲' : '▼') + '</span>' : ''}</th>`
   ).join('') + '</tr>';
@@ -1773,12 +1896,7 @@ function renderDashboard() {
       nachname: p.nachname, vorname: p.vorname, fahrlizenz: p.fahrlizenz, stufe: p.stufe || '', status: p.status,
       dienste: s.dienste, presence: s.presencePct
     };
-    for (const c of cats) { vals['cnt_' + c.id] = s.catCounts[c.id]; vals['pct_' + c.id] = s.catPct[c.id]; }
-    /* Sortierwert „zuletzt“: Anzahl Abende seitdem; nie = Infinity (am längsten her) */
-    for (const c of fairCats) {
-      const n = eveningsSince(stats, s.lastCat[c.id] || null);
-      vals['last_' + c.id] = n === null ? Infinity : n;
-    }
+    for (const c of spaltenCats) { vals['cnt_' + c.id] = s.catCounts[c.id]; vals['pct_' + c.id] = s.catPct[c.id]; }
     return { p, s, vals };
   });
   rows.sort((a, b) => {
@@ -1799,19 +1917,32 @@ function renderDashboard() {
     html += `<td title="${esc(eignungText(p))}">${stufeBadge(p)}${p.df ? ' <span class="chip chip-muted" title="DF-berechtigt">DF</span>' : ''}</td>`;
     html += `<td><span class="chip ${p.status === 'aktiv' ? 'chip-ok' : 'chip-muted'}">${esc(p.status)}</span></td>`;
     html += `<td class="num">${fmtZahl(s.dienste)}</td><td class="num heat"${heatTd(s.presencePct)}>${fmtPct(s.presencePct)}</td>`;
-    for (const c of cats) {
-      const eligible = isEligible(p, c);
-      const cls = eligible ? '' : 'not-eligible';
-      const title = eligible ? '' : 'nicht ' + c.label + '-berechtigt';
+    for (const c of spaltenCats) {
+      /* FEATURE: Ausgrauen — KTW graut nie aus (auch Praktikanten fahren als 2. Trspf. mit) */
+      const grau = istAusgegraut(p, c);
+      const cls = grau ? 'not-eligible' : '';
+      const title = grau ? 'nicht ' + c.label + '-berechtigt' : '';
       html += `<td class="num cat-cnt ${cls}" title="${esc(title)}">${fmtZahl(vals['cnt_' + c.id])}</td>`;
       html += `<td class="num cat-pct heat ${cls}" title="${esc(title)}"${heatTd(vals['pct_' + c.id])}>${fmtPct(vals['pct_' + c.id])}</td>`;
     }
-    for (const c of fairCats) {
-      const last = s.lastCat[c.id] || null;
-      html += `<td class="num cat-cnt" title="${esc(last ? fmtDateDE(last) : 'noch nie ' + c.label)}">${esc(fmtVorN(eveningsSince(stats, last)))}</td>`;
-    }
     return html + '</tr>';
   }).join('') || '<tr><td colspan="99" class="muted">Keine Personen erfasst.</td></tr>';
+
+  renderDfCard(stats);
+}
+
+/* ===== FEATURE: DF-Statistik (provisorische Karte unter der Personen-Übersicht) ===== */
+function renderDfCard(stats) {
+  const rows = dfStatistik(data, stats);
+  const card = $('#dfCard');
+  if (!rows.length) { card.hidden = true; return; }
+  card.hidden = false;
+  $('#dfTable thead').innerHTML = '<tr><th>Name</th><th class="num">DF-Dienste</th><th class="num">Anteil an allen DF</th><th class="num">Dienste gesamt</th></tr>';
+  $('#dfTable tbody').innerHTML = rows.map(r =>
+    `<tr class="${r.ohneBerechtigung || r.p.status === 'ausgetreten' ? 'is-inactive' : ''}">
+     <td>${esc(r.p.nachname)} ${esc(r.p.vorname)}${r.ohneBerechtigung ? ' <span class="chip chip-muted" title="hat DF-Dienste, aber kein DF-Häkchen">ohne DF-Berechtigung</span>' : ''}${r.p.status === 'ausgetreten' ? ' <span class="chip chip-muted">ausgetreten</span>' : ''}</td>
+     <td class="num">${fmtZahl(r.dfDienste)}</td><td class="num">${fmtPct(r.anteil)}</td><td class="num">${fmtZahl(r.dienste)}</td></tr>`
+  ).join('');
 }
 
 ['dashFilterRolle', 'dashFilterKat'].forEach(id => {
@@ -2108,14 +2239,20 @@ async function confirmEvening() {
   }
 
   /* Abend bauen — Rolle aus der Spaltenposition wird mitgeschrieben (Zusatzinfo,
-     ändert nichts am Zählen); Gäste werden je Abend erfasst und nicht gezählt */
+     ändert nichts am Zählen); Gäste werden je Abend mit Tour-Kategorie(n) und
+     Rolle erfasst (Kombi ÄBD/ZBV ⇒ je 0,5; Zeitfaktoren gelten bei Gästen nicht) */
   const evening = { date: preview.date, assignments: {}, partials: {}, gaeste: [] };
   for (const t of preview.tours) {
     for (const c of t.crew) {
       const r = preview.nameRes.get(normKey(c.name));
       if (!r) continue;
       if (r.action === 'gast') {
-        if (!evening.gaeste.some(g => normKey(g) === normKey(c.name))) evening.gaeste.push(normSpace(c.name));
+        const vorhanden = evening.gaeste.find(g => normKey(g.name) === normKey(c.name));
+        if (vorhanden) {
+          for (const kw of katWerte(t.catIds)) vorhanden.kats = [...(vorhanden.kats || []), kw];
+        } else {
+          evening.gaeste.push({ name: normSpace(c.name), kats: t.catIds.length ? katWerte(t.catIds) : null, rolle: c.rolle });
+        }
         continue;
       }
       if (r.action !== 'person' || !r.personId) continue;
@@ -2137,7 +2274,7 @@ async function confirmEvening() {
   /* Bestätigte Gäste in die globale gastListe (kein erneutes Nachfragen) */
   data.gastListe = data.gastListe || [];
   for (const g of (evening.gaeste || [])) {
-    if (!data.gastListe.some(x => normKey(x) === normKey(g))) data.gastListe.push(g);
+    if (!data.gastListe.some(x => normKey(x) === normKey(g.name))) data.gastListe.push(g.name);
   }
 
   let mode = null;
@@ -2156,19 +2293,7 @@ async function confirmEvening() {
 }
 
 /* ===================== Abende-Ansicht ===================== */
-/* FEATURE: Gast-Quote — kompakter Kopfbereich über der Abende-Liste */
-function renderGastInfo() {
-  const gast = computeGastStats(data);
-  const el = $('#gastInfo');
-  if (!gast.einsaetze) { el.innerHTML = ''; return; }
-  el.innerHTML = '<p class="hint" style="margin-bottom:var(--sp-3)"><strong>Gäste:</strong> ' +
-    gast.einsaetze + ' Einsätze von ' + gast.verschiedene + ' verschiedenen Gästen (' + fmtPct(gast.anteil) + ' aller Crew-Plätze). ' +
-    'Häufigste: ' + gast.top.map(g => esc(g.name) + ' (' + g.count + '×)').join(', ') +
-    ' — gute Kandidaten fürs Anwerben.</p>';
-}
-
 function renderEvenings() {
-  renderGastInfo();
   const evs = sortedEvenings(data).reverse();
   $('#eveningsTable thead').innerHTML = '<tr><th>Datum</th><th>Personen</th><th>Gäste</th><th>Kategorien</th><th></th></tr>';
   $('#eveningsTable tbody').innerHTML = evs.map(ev => {
@@ -2177,7 +2302,7 @@ function renderEvenings() {
     const catTxt = data.categories.filter(c => counts[c.id]).map(c => c.label + ' ' + counts[c.id]).join(', ');
     const gastN = (ev.gaeste || []).length;
     return `<tr><td>${esc(fmtDateDE(ev.date))}</td><td class="num">${Object.keys(ev.assignments).length}</td>
-      <td class="num" title="${esc((ev.gaeste || []).join(', '))}">${gastN || ''}</td><td>${esc(catTxt)}</td>
+      <td class="num" title="${esc((ev.gaeste || []).map(gastName).join(', '))}">${gastN || ''}</td><td>${esc(catTxt)}</td>
       <td><button class="btn btn-sm" data-open-ev="${ev.date}">Öffnen</button> <button class="btn btn-sm btn-danger" data-del-ev="${ev.date}">Löschen</button></td></tr>`;
   }).join('') || '<tr><td colspan="5" class="muted">Noch keine Abende erfasst.</td></tr>';
 
@@ -2194,6 +2319,46 @@ function renderEvenings() {
       }
     }
   };
+}
+
+/* ===================== FEATURE: Gäste-Ansicht ===================== */
+let gaesteSort = { key: 'einsaetze', dir: -1 };
+function renderGaesteView() {
+  /* Gast-Quote (aus der Abende-Ansicht umgezogen) */
+  const gast = computeGastStats(data);
+  $('#gastInfo').innerHTML = gast.einsaetze
+    ? '<p class="hint" style="margin-bottom:var(--sp-3)"><strong>Gast-Quote:</strong> ' +
+      gast.einsaetze + ' Einsätze von ' + gast.verschiedene + ' verschiedenen Gästen — ' +
+      fmtPct(gast.anteil) + ' aller Crew-Plätze.</p>'
+    : '';
+
+  const rows = gastTabelle(data);
+  const katCols = data.categories.map(c => ({ key: 'kat_' + c.id, label: c.label, cat: c.id }));
+  const cols = [
+    { key: 'name', label: 'Name' }, { key: 'einsaetze', label: 'Einsätze', num: true },
+    ...katCols.map(c => ({ ...c, num: true })),
+    { key: 'unbekannt', label: '?', num: true }
+  ];
+  $('#gaesteTable thead').innerHTML = '<tr>' + cols.map(c =>
+    `<th class="sortable" data-key="${c.key}" ${c.key === 'unbekannt' ? 'title="Alt-Einsätze mit unbekannter Kategorie (vor Version 4 erfasst)"' : ''}>${esc(c.label)}${gaesteSort.key === c.key ? ' <span class="sort-arrow">' + (gaesteSort.dir > 0 ? '▲' : '▼') + '</span>' : ''}</th>`
+  ).join('') + '</tr>';
+  $('#gaesteTable thead').onclick = e => {
+    const th = e.target.closest('th[data-key]');
+    if (!th) return;
+    if (gaesteSort.key === th.dataset.key) gaesteSort.dir = -gaesteSort.dir;
+    else gaesteSort = { key: th.dataset.key, dir: th.dataset.key === 'name' ? 1 : -1 };
+    renderGaesteView();
+  };
+  const val = (r, key) => key === 'name' ? r.name.toLowerCase() : key === 'einsaetze' ? r.einsaetze : key === 'unbekannt' ? r.unbekannt : (r.counts[key.slice(4)] || 0);
+  rows.sort((a, b) => {
+    const va = val(a, gaesteSort.key), vb = val(b, gaesteSort.key);
+    return (va < vb ? -1 : va > vb ? 1 : 0) * gaesteSort.dir || a.name.localeCompare(b.name, 'de');
+  });
+  $('#gaesteTable tbody').innerHTML = rows.map(r =>
+    `<tr><td>${esc(r.name)}</td><td class="num">${r.einsaetze}</td>` +
+    katCols.map(c => `<td class="num">${r.counts[c.cat] ? fmtZahl(r.counts[c.cat]) : ''}</td>`).join('') +
+    `<td class="num muted">${r.unbekannt || ''}</td></tr>`
+  ).join('') || '<tr><td colspan="99" class="muted">Noch keine Gäste erfasst.</td></tr>';
 }
 
 function renderEveningDetail(date) {
@@ -2221,7 +2386,17 @@ function renderEveningDetail(date) {
     <tbody>${rows}</tbody></table></div>
     <div class="toolbar" style="margin-top:var(--sp-3)"><select id="evAddPerson"><option value="">– Person hinzufügen –</option>${addOpts}</select>
     <button class="btn btn-sm" id="btnEvAdd">Hinzufügen</button></div>
-    <div class="toolbar"><label>Gäste (kommagetrennt) <input type="text" id="evGaeste" style="min-width:320px" value="${esc((ev.gaeste || []).join(', '))}"></label></div></div>`;
+    <h3 style="margin-top:var(--sp-4)">Gäste des Abends</h3>
+    ${(ev.gaeste || []).map((g, i) => {
+      const kats = (typeof g === 'object' && Array.isArray(g.kats) && g.kats.length) ? g.kats : null;
+      return `<div class="toolbar"><strong>${esc(gastName(g))}</strong> ` +
+        (kats
+          ? `<span class="chip chip-muted">${esc(kats.map(e => catLabel(e.kat) + (e.wert !== 1 ? ' (' + fmtZahl(e.wert) + ')' : '')).join(' + '))}</span>`
+          : `<select data-gast-kat="${i}" title="Kategorie nachtragen (Alt-Einsatz mit unbekannter Kategorie)"><option value="">Kategorie unbekannt</option>` +
+            data.categories.map(c => `<option value="${esc(c.id)}">${esc(c.label)}</option>`).join('') + '</select>') +
+        ` <button class="btn btn-sm btn-danger" data-gast-rm="${i}">Entfernen</button></div>`;
+    }).join('') || '<p class="hint">keine Gäste</p>'}
+    <div class="toolbar"><input type="text" id="evGastNeu" placeholder="Vorname Nachname"> <button class="btn btn-sm" id="btnEvGastAdd">Gast hinzufügen</button></div></div>`;
 
   const root = $('#eveningDetail');
   root.querySelectorAll('[data-ev-cat]').forEach(cb => cb.onchange = () => {
@@ -2231,16 +2406,37 @@ function renderEveningDetail(date) {
     else { ev.assignments[pid] = list.filter(e => e.kat !== cid); if (!ev.assignments[pid].length) delete ev.assignments[pid]; }
     dataChanged(); renderEveningDetail(date);
   });
-  $('#evGaeste').onchange = () => {
-    const list = $('#evGaeste').value.split(',').map(normSpace).filter(Boolean);
-    if (list.length) ev.gaeste = list; else delete ev.gaeste;
-    dataChanged();
+  /* Gäste: Kategorie für Alt-Einträge nachtragen, entfernen, hinzufügen */
+  root.querySelectorAll('[data-gast-kat]').forEach(sel => sel.onchange = () => {
+    const i = +sel.dataset.gastKat;
+    const g = ev.gaeste[i];
+    const obj = typeof g === 'string' ? { name: g, kats: null } : g;
+    obj.kats = sel.value ? [{ kat: sel.value, wert: 1 }] : null;
+    ev.gaeste[i] = obj;
+    dataChanged(); renderEveningDetail(date);
+  });
+  root.querySelectorAll('[data-gast-rm]').forEach(btn => btn.onclick = () => {
+    ev.gaeste.splice(+btn.dataset.gastRm, 1);
+    if (!ev.gaeste.length) delete ev.gaeste;
+    dataChanged(); renderEveningDetail(date);
+  });
+  $('#btnEvGastAdd').onclick = () => {
+    const name = normSpace($('#evGastNeu').value);
+    if (!name) return;
+    ev.gaeste = ev.gaeste || [];
+    if (!ev.gaeste.some(g => normKey(gastName(g)) === normKey(name))) ev.gaeste.push({ name, kats: null });
+    dataChanged(); renderEveningDetail(date);
   };
   root.querySelectorAll('[data-ev-part]').forEach(inp => inp.onchange = () => {
     const pid = inp.dataset.evPart;
     ev.partials = ev.partials || {};
     if (inp.value === '') delete ev.partials[pid];
-    else { const v = parseFloat(inp.value); if (!isNaN(v) && v >= 0 && v <= 1) ev.partials[pid] = v; }
+    else {
+      const v = parseFloat(inp.value);
+      /* Faktor (mit Dienst): (0, 1]; Anwesenheitswert (ohne Dienst): [0, 1] */
+      const hatDienst = (ev.assignments[pid] || []).length > 0;
+      if (!isNaN(v) && (hatDienst ? (v > 0 && v <= 1) : (v >= 0 && v <= 1))) ev.partials[pid] = v;
+    }
     if (!Object.keys(ev.partials).length) delete ev.partials;
     dataChanged(); renderEveningDetail(date);
   });
@@ -2576,7 +2772,12 @@ $('#btnExcelExport').addEventListener('click', () => {
       const katTxt = a.map(e => catLabel(e.kat) + (e.rolle ? ' (' + (ROLLE_LABEL[e.rolle] || e.rolle) + ')' : '')).join('/');
       rawRows.push([ev.date, p.nachname, p.vorname, katTxt, part]);
     }
-    for (const g of (ev.gaeste || [])) rawRows.push([ev.date, g, '', '(Gast)', '']);
+    for (const g of (ev.gaeste || [])) {
+      const kats = (typeof g === 'object' && Array.isArray(g.kats) && g.kats.length)
+        ? g.kats.map(e => catLabel(e.kat) + (e.wert !== 1 ? ' (' + fmtZahl(e.wert) + ')' : '')).join('/')
+        : '?';
+      rawRows.push([ev.date, gastName(g), '', '(Gast) ' + kats, '']);
+    }
   }
   XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(rawRows), 'Abende');
 
@@ -2587,34 +2788,58 @@ $('#btnExcelExport').addEventListener('click', () => {
   XLSX.writeFile(wb, 'Zug11_Statistik_Export.xlsx');
 });
 
-/* ===================== FEATURE: Datenprüfung (Panel + Sidebar-Badge) ===================== */
-let checkFindings = [];
+/* ===================== FEATURE: Datenprüfung (Panel + Sidebar-Badge) =====================
+   FEATURE: Quittierungen — Hinweise (gelb) sind dauerhaft quittierbar, die
+   Quittierung wird in der Datei gespeichert; Fehler (rot) nie. Das Badge
+   zählt nur offene Einträge. */
+let zeigeQuittierte = false;
 function renderCheckPanel() {
-  checkFindings = checkData(data);
-  const fehler = checkFindings.filter(f => f.typ === 'fehler');
-  const hinweise = checkFindings.filter(f => f.typ === 'hinweis');
+  const { offen, quittiert } = offeneBefunde(checkData(data), data.quittierungen);
+  const fehler = offen.filter(f => f.typ === 'fehler');
+  const hinweise = offen.filter(f => f.typ === 'hinweis');
 
-  /* dezentes Badge in der Seitenleiste */
+  /* dezentes Badge in der Seitenleiste — nur offene Einträge */
   const badge = $('#checkBadge');
-  badge.hidden = checkFindings.length === 0;
-  badge.textContent = checkFindings.length || '';
+  badge.hidden = offen.length === 0;
+  badge.textContent = offen.length || '';
   badge.classList.toggle('is-err', fehler.length > 0);
-  badge.title = fehler.length + ' Fehler, ' + hinweise.length + ' Hinweise — Details unter Datei & Excel → Datenprüfung';
+  badge.title = fehler.length + ' Fehler, ' + hinweise.length + ' offene Hinweise — Details unter Datei & Excel → Datenprüfung';
 
   const panel = $('#checkPanel');
-  if (!checkFindings.length) {
-    panel.innerHTML = '<div class="notice notice-ok">Keine Auffälligkeiten — alle Prüfregeln bestanden.</div>';
-    return;
-  }
-  const item = f => {
+  const item = (f, quittierbar) => {
     const links = [];
     if (f.evDate) links.push(`<a href="#" data-goto-ev="${esc(f.evDate)}">zum Abend</a>`);
     if (f.personId) links.push(`<a href="#" data-goto-person="${esc(f.personId)}">zur Person</a>`);
-    if (f.code === 'stufe-fehlt') links.push('<a href="#" data-goto-personen>zur Personen-Verwaltung</a>');
     return `<li><span class="chip ${f.typ === 'fehler' ? 'chip-err' : 'chip-warn'}">${f.typ === 'fehler' ? 'Fehler' : 'Hinweis'}</span>` +
-      `<span>${esc(f.text)}${links.length ? ' · ' + links.join(' · ') : ''}</span></li>`;
+      `<span>${esc(f.text)}${links.length ? ' · ' + links.join(' · ') : ''}</span>` +
+      (quittierbar && f.typ === 'hinweis' ? ` <button class="btn btn-sm" data-quittieren="${esc(f.key)}" title="Hinweis dauerhaft ausblenden (wird in der Datei gespeichert)">Quittieren</button>` : '') +
+      '</li>';
   };
-  panel.innerHTML = '<ul class="check-list">' + [...fehler, ...hinweise].map(item).join('') + '</ul>';
+  let html = '';
+  if (!offen.length) html += '<div class="notice notice-ok">Keine offenen Auffälligkeiten.</div>';
+  else html += '<ul class="check-list">' + [...fehler, ...hinweise].map(f => item(f, true)).join('') + '</ul>';
+  if (quittiert.length) {
+    html += `<p class="hint" style="margin-top:var(--sp-3)">
+      <a href="#" id="toggleQuittierte">${quittiert.length === 1 ? '1 quittierten Hinweis' : quittiert.length + ' quittierte Hinweise'} ${zeigeQuittierte ? 'ausblenden' : 'anzeigen'}</a>
+      · <a href="#" id="resetQuittierte">zurücksetzen</a></p>`;
+    if (zeigeQuittierte) html += '<ul class="check-list" style="opacity:.6">' + quittiert.map(f => item(f, false)).join('') + '</ul>';
+  }
+  panel.innerHTML = html;
+
+  panel.querySelectorAll('[data-quittieren]').forEach(btn => btn.onclick = () => {
+    data.quittierungen = data.quittierungen || [];
+    data.quittierungen.push({ key: btn.dataset.quittieren, datum: new Date().toISOString().slice(0, 10) });
+    dataChanged();
+  });
+  const tgl = $('#toggleQuittierte');
+  if (tgl) tgl.onclick = e => { e.preventDefault(); zeigeQuittierte = !zeigeQuittierte; renderCheckPanel(); };
+  const rst = $('#resetQuittierte');
+  if (rst) rst.onclick = async e => {
+    e.preventDefault();
+    const ok = await showDialog('<h3>Quittierungen zurücksetzen?</h3><p>Alle ' + quittiert.length + ' quittierten Hinweise werden wieder angezeigt.</p>',
+      [{ label: 'Zurücksetzen', value: true, primary: true }, { label: 'Abbrechen', value: false }]);
+    if (ok) { data.quittierungen = []; dataChanged(); }
+  };
 }
 
 /* Links aus der Datenprüfung: zum betroffenen Abend bzw. zur Person */
@@ -2668,6 +2893,7 @@ window.addEventListener('afterprint', () => document.body.classList.remove('prin
 function renderAll() {
   renderDashboard();
   renderEvenings();
+  renderGaesteView(); // FEATURE: Gäste-Ansicht
   renderPersons();
   renderCategories();
   renderCheckPanel(); // FEATURE: Datenprüfung — nach jedem Laden/Verbuchen/Edit

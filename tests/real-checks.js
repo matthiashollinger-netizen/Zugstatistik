@@ -127,11 +127,22 @@ function approx(a, b, eps) { return Math.abs(a - b) < (eps || 1e-6); }
     'genau die 3 bekannten Faktor-Befunde aus dem Altbestand (war: ' + fehler.map(f => f.code).join(',') + ')');
   for (const f of fehler) print('Info (Altbestand): ' + f.text);
   print('Datenprüfung: ' + findings.length + ' Befunde (' + dfHinweise.length + '× Doppel-DF, ' +
-        findings.filter(f => f.code === 'stufe-fehlt').length + '× Stufe-fehlt-Sammelhinweis, ' +
+        findings.filter(f => f.code === 'stufe-fehlt').length + '× Stufe fehlt, ' +
         fehler.length + '× Faktor-Altbestand)');
 
+  // ---- v1.2.1: Altbestand enthält keine ÄBD/ZBV-Kombi-Abende und kein ZBV
+  // (nur „ÄND“) → die 0,5-Regel ändert keine Personen-Zählwerte. ----
+  let kombiAbende = 0;
+  for (const ev of res.data.evenings) {
+    for (const pid of Object.keys(ev.assignments)) {
+      const cats = assignmentCats(ev, pid);
+      if (cats.length > 1) kombiAbende++;
+    }
+  }
+  assert(kombiAbende === 0, 'keine Mehrfach-Kategorie-Einträge im Altbestand (war: ' + kombiAbende + ')');
+
   // ---- Schema nach Import: Migration der Quali-Werte stichprobenhaft prüfen ----
-  assert(res.data.version === 3, 'Import liefert Schema v3 (war: ' + res.data.version + ')');
+  assert(res.data.version === 4, 'Import liefert Schema v4 (war: ' + res.data.version + ')');
   assert(Array.isArray(res.data.gastListe), 'gastListe vorhanden');
   let migChecked = 0, stufeFehlt = 0;
   for (const row of REAL.stammdaten.slice(1)) {

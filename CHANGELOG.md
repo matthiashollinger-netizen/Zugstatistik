@@ -1,5 +1,47 @@
 # Changelog
 
+## v1.2.1 — 2026-06-11
+
+**Regeländerung — ÄBD/ZBV-Kombi zählt 0,5 / 0,5:** Der kombinierte Tour-Code
+gibt je +0,5 ÄBD und +0,5 ZBV (× Personen-Faktor: Kombi + 0,7 ⇒ 0,35/0,35);
+reine Codes bleiben 1,0. Damit gilt die Invariante „Summe der Kategorie-Werte
+= Dienste“ — Prozentsummen können nie mehr über 100 % gehen (in der
+Datenprüfung und den Tests verankert; der alte Kombi-Hinweis entfällt).
+Anzeige mit bis zu 2 Nachkommastellen (0,35). Der Altbestand enthält keine
+Kombi-Abende (verifiziert) — reine Regeländerung ohne Daten-Migration.
+
+**Datei-Schema v4** (Migrationskette v1→v4, verlustfrei wie immer):
+
+* **Quittierbare Hinweise:** Gelbe Datenprüfungs-Hinweise haben stabile
+  Schlüssel und lassen sich dauerhaft quittieren (`quittierungen` in der
+  Datei). Das Sidebar-Badge zählt nur offene Einträge; quittierte sind über
+  einen Link einsehbar und rücksetzbar. Fehler (rot) sind nicht quittierbar.
+* **0-Werte-Bereinigung beim Laden:** Gespeicherte 0-Werte ohne Zuordnungen
+  am selben Abend sind redundant (Abwesenheit ergibt sich automatisch) und
+  werden beziffert entfernt. Faktor 0 *mit* Zuordnungen bleibt ein roter
+  Fehler (Widerspruch: gefahren, aber zählt 0).
+* **Gäste mit Kategorien:** `gaeste` je Abend sind Objekte
+  `{name, kats: [{kat, wert}], rolle}` — der Parser erfasst Tour-Kategorie(n)
+  (Kombi je 0,5; Zeitfaktoren gelten bei Gästen nicht) und Rolle.
+  Alt-Einträge bekommen „Kategorie unbekannt“.
+
+**Neue Ansicht „Gäste“** (Sidebar): Gast-Quote (aus der Abende-Ansicht
+umgezogen) + sortierbare Tabelle je Gast mit Einsätzen, Kategorien-Anzahl und
+„?“-Spalte für Alt-Einsätze — bewusst reine Statistik ohne Verwaltung. Die
+Top-5-Liste der Abende-Ansicht geht darin auf.
+
+**Personen-Übersicht umgebaut:** „Zuletzt“-Spalten und DF/DF-%-Spalten
+entfernt (die Zuletzt-Information bleibt im Dran-Ranking und in den
+Dran-Karten); Sortierzustände überleben den Umbau. Darunter neu die Karte
+**DF-Statistik** (provisorisch — Layout-Review durch das Kommando): alle
+Personen mit DF-Häkchen oder DF-Diensten, Bilanz der Anteile (100 %),
+Markierung „ohne DF-Berechtigung“.
+
+**Außerdem:** KTW-Spalten grauen nie aus (auch Praktikanten fahren als
+2. Trspf. mit); RTW/ÄBD/ZBV-Ausgrauen unverändert. Abend-Editor: Faktor je
+Person validiert auf (0, 1], Gäste des Abends mit Kategorie sichtbar und für
+Alt-Einträge nachtragbar.
+
 ## v1.2 — 2026-06-10
 
 **Datei-Schema v3** (Migration v2→v3 trivial, v1→v3-Kette funktioniert;

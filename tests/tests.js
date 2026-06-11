@@ -105,7 +105,8 @@ function P(id, fahrlizenz, stufe, extra) {
   const before = JSON.parse(JSON.stringify(v1));
   const migrated = migrateData(v1);
   assert(migrated === true, 'v1-Datei wird als migriert gemeldet');
-  assertEq(v1.version, 3, 'version → 3 (v1→v3-Kette)');
+  assertEq(v1.version, 4, 'version → 4 (v1→v4-Kette)');
+  assertEq(v1.quittierungen, [], 'quittierungen ergänzt');
   assertEq(v1.gastListe, [], 'gastListe ergänzt');
   assertEq(v1.notizGlobal, before.notizGlobal, 'unbekanntes Wurzel-Feld bleibt');
   assertEq(v1.people[0].notiz, 'bleibt', 'unbekanntes Personen-Feld bleibt');
@@ -135,31 +136,58 @@ function P(id, fahrlizenz, stufe, extra) {
   const stats = computeStats(v1);
   assert(approx(stats.perPerson.pa.dienste, 1.5), 'Dienste mit Faktor (0,5 + 1)');
   assert(approx(stats.perPerson.pa.catCounts.RTW, 0.5), 'Faktor wirkt auf die Kategorie des Abends');
-  assertEq(stats.perPerson.pa.catCounts.ABD, 1, 'Abend ohne Faktor zählt voll');
+  assert(approx(stats.perPerson.pa.catCounts.ABD, 0.5) && approx(stats.perPerson.pa.catCounts.ZBV, 0.5), 'Kombi-Abend zählt je 0,5');
   assert(approx(stats.perPerson.pa.presenceSum, 1.5), 'Migration ändert Anwesenheit nicht');
 })();
 
-/* ============ Migration: v2 → v3 trivial, v3 lädt unverändert ============ */
+/* ============ Migration: v2/v3 → v4 (Gäste werden Objekte), v4 lädt unverändert ============ */
 (function () {
-  const mk = version => {
+  const mk = (version, gaeste) => {
     const d = defaultData();
     d.version = version;
     d.gastListe = ['Gerda Gast'];
+    if (version >= 4) d.quittierungen = [{ key: 'doppel-df:2026-01-05', datum: '2026-06-10' }];
+    else delete d.quittierungen;
     d.people.push(P('pa', 'B3', 'NFS', { qualifikationAlt: 'B3-NFS' }));
-    d.evenings.push({ date: '2026-01-05', assignments: { pa: [{ kat: 'RTW', rolle: 'fahrer' }] }, partials: { pa: 0.5 }, gaeste: ['Gerda Gast'] });
+    d.evenings.push({ date: '2026-01-05', assignments: { pa: [{ kat: 'RTW', rolle: 'fahrer' }] }, partials: { pa: 0.5 }, gaeste });
     return d;
   };
-  const v2 = mk(2);
-  const before2 = JSON.stringify(v2);
-  assert(migrateData(v2) === true, 'v2-Datei wird migriert gemeldet (Versionssprung)');
-  assertEq(v2.version, 3, 'v2 → version 3');
-  v2.version = 2; // Strukturen müssen ansonsten identisch sein
-  assertEq(JSON.stringify(v2), before2, 'v2 → v3 ändert nur die Versionsnummer');
+  /* v3 → v4: Gast-Strings werden zu Objekten mit kats: null (Kategorie unbekannt) */
+  const v3 = mk(3, ['Gerda Gast', 'Hans Helfer']);
+  assert(migrateData(v3) === true, 'v3-Datei wird migriert gemeldet');
+  assertEq(v3.version, 4, 'v3 → version 4');
+  assertEq(v3.quittierungen, [], 'quittierungen ergänzt');
+  assertEq(v3.evenings[0].gaeste, [{ name: 'Gerda Gast', kats: null }, { name: 'Hans Helfer', kats: null }],
+    'Gast-Strings → {name, kats: null}');
+  assertEq(v3.evenings[0].partials, { pa: 0.5 }, 'Faktor-Map unverändert');
 
-  const v3 = mk(3);
-  const before3 = JSON.stringify(v3);
-  assert(migrateData(v3) === false, 'v3-Datei wird nicht als migriert gemeldet');
-  assertEq(JSON.stringify(v3), before3, 'v3-Datei bleibt byte-identisch');
+  /* v2 → v4: dieselbe Kette */
+  const v2 = mk(2, ['Gerda Gast']);
+  assert(migrateData(v2) === true, 'v2-Datei wird migriert gemeldet');
+  assertEq(v2.version, 4, 'v2 → version 4');
+  assertEq(v2.evenings[0].gaeste[0].kats, null, 'v2-Gast migriert');
+
+  /* v4 lädt byte-identisch */
+  const v4 = mk(4, [{ name: 'Gerda Gast', kats: [{ kat: 'KTW', wert: 1 }], rolle: 'p2' }]);
+  const before4 = JSON.stringify(v4);
+  assert(migrateData(v4) === false, 'v4-Datei wird nicht als migriert gemeldet');
+  assertEq(JSON.stringify(v4), before4, 'v4-Datei bleibt byte-identisch (inkl. Quittierungen und Gast-Objekten)');
+})();
+
+/* ============ 0-Werte-Bereinigung ============ */
+(function () {
+  const d = defaultData();
+  d.people.push(P('pa', 'B3', null), P('pb', 'B2', null));
+  /* redundante 0 ohne Zuordnung → entfernen; 0 mit Zuordnung → bleibt (Fehler) */
+  d.evenings.push({ date: '2026-01-05', assignments: { pa: A('KTW') }, partials: { pa: 0, pb: 0 } });
+  d.evenings.push({ date: '2026-01-12', assignments: {}, partials: { pa: 0, pb: 0.5 } });
+  const n = cleanupNullWerte(d);
+  assertEq(n, 2, '2 redundante 0-Werte bereinigt (beziffert)');
+  assertEq(d.evenings[0].partials, { pa: 0 }, 'Faktor 0 MIT Zuordnung bleibt (Widerspruch sichtbar lassen)');
+  assertEq(d.evenings[1].partials, { pb: 0.5 }, 'Teilwert ohne Zuordnung bleibt (echte Teil-Anwesenheit)');
+  const fehler = checkData(d).filter(f => f.typ === 'fehler');
+  assertEq(fehler.map(f => f.code), ['faktor'], 'nach Bereinigung bleibt genau der Widerspruchs-Fehler');
+  assertEq(cleanupNullWerte(d), 0, 'zweiter Lauf findet nichts mehr');
 })();
 
 /* ============ Eignungsableitung (darfFahren / darfTf / isEligible) ============ */
@@ -310,8 +338,11 @@ function P(id, fahrlizenz, stufe, extra) {
   assertEq(s.dienste, 10, '10 Dienste');
   assert(approx(s.catPct['KTW'], 0.6), 'KTW 60 %');
   assert(approx(s.catPct['RTW'], 0.3), 'RTW 30 %');
-  assert(approx(s.catPct['ABD'], 0.1), 'ÄBD 10 %');
-  assert(approx(s.catPct['ZBV'], 0.1), 'ZBV 10 % (Summe 110 %)');
+  /* 0,5-Regel: der Kombi-Abend teilt sich auf ÄBD und ZBV auf */
+  assert(approx(s.catPct['ABD'], 0.05), 'ÄBD 5 % (Kombi zählt 0,5)');
+  assert(approx(s.catPct['ZBV'], 0.05), 'ZBV 5 % (Summe exakt 100 %)');
+  assert(approx(s.catCounts['KTW'] + s.catCounts['RTW'] + s.catCounts['ABD'] + s.catCounts['ZBV'] + s.catCounts['DF'], s.dienste),
+    'Invariante: Summe der Kategorie-Werte = Dienste');
   assert(approx(s.presencePct, 1), 'Anwesenheit 100 %');
   /* Zuletzt-Daten */
   assertEq(s.lastCat['RTW'], '2026-03-02', 'letzter RTW-Dienst');
@@ -370,26 +401,140 @@ function P(id, fahrlizenz, stufe, extra) {
 })();
 
 (function () {
-  // Faktor + ÄBD/ZBV-Doppelzählung: beide Kategorien bekommen den Faktor
+  // 0,5-Regel: Kombi ÄBD/ZBV teilt den Dienst — mit Faktor 0,7 je 0,35
   const data = defaultData();
-  data.people.push(P('pz', 'B2', null));
-  data.evenings.push({ date: '2026-01-05', assignments: { pz: A('ABD', 'ZBV') }, partials: { pz: 0.7 } });
+  data.people.push(P('pz', 'B2', null), P('pr', 'B2', null));
+  data.evenings.push({ date: '2026-01-05', assignments: { pz: A('ABD', 'ZBV'), pr: A('ABD') }, partials: { pz: 0.7 } });
   const stats = computeStats(data);
   const s = stats.perPerson['pz'];
-  assert(approx(s.dienste, 0.7), '0,7 Dienste');
-  assert(approx(s.catCounts['ABD'], 0.7) && approx(s.catCounts['ZBV'], 0.7), 'ÄBD und ZBV je 0,7');
-  assertEq(s.catPct['ABD'], 1, 'Anteile je 100 % (Summe über 100 % möglich)');
+  assert(approx(s.dienste, 0.7), 'der Abend zählt wie gehabt als 1 × Faktor Dienst');
+  assert(approx(s.catCounts['ABD'], 0.35) && approx(s.catCounts['ZBV'], 0.35), 'Kombi + Faktor 0,7 ⇒ 0,35 / 0,35');
+  assert(approx(s.catPct['ABD'], 0.5) && approx(s.catPct['ZBV'], 0.5), 'Anteile je 50 % — Summe exakt 100 %');
+  /* reine Codes bleiben 1,0 */
+  assert(approx(stats.perPerson['pr'].catCounts['ABD'], 1), 'reines ÄBD bleibt 1,0');
+  assert(approx(stats.catTotals['ABD'], 1.35) && approx(stats.catTotals['ZBV'], 0.35), 'Gesamtsummen mit 0,5-Regel');
 })();
 
-/* ============ de-AT-Formatierung (Komma, max 1 Nachkommastelle) ============ */
+/* ============ Invariante: Summe Kategorien = Dienste (Eigenschaft) ============ */
+(function () {
+  const data = defaultData();
+  data.people.push(P('a', 'B3', 'NFS', { df: true }), P('b', 'B2', 'RS1'), P('c', 'keine', 'Praktikant'));
+  data.evenings.push({ date: '2026-01-05', assignments: { a: A('RTW'), b: A('ABD', 'ZBV'), c: A('KTW') }, partials: { c: 0.5 } });
+  data.evenings.push({ date: '2026-01-12', assignments: { a: A('DF'), b: A('KTW', 'RTW') }, partials: { b: 0.7 } });
+  data.evenings.push({ date: '2026-01-19', assignments: { a: A('ABD', 'ZBV') }, partials: { a: 0.3 } });
+  const stats = computeStats(data);
+  for (const p of data.people) {
+    const s = stats.perPerson[p.id];
+    const summe = Object.values(s.catCounts).reduce((x, y) => x + y, 0);
+    assert(approx(summe, s.dienste), 'Invariante hält für ' + p.id + ' (' + summe + ' = ' + s.dienste + ')');
+    let pctSum = 0;
+    for (const cid of Object.keys(s.catPct)) pctSum += s.catPct[cid] || 0;
+    assert(s.dienste === 0 || pctSum <= 1 + 1e-9, 'Prozentsumme nie über 100 % (' + p.id + ')');
+  }
+  assertEq(checkData(data).filter(f => f.code === 'kategorien-summe'), [], 'Datenprüfungs-Invariante meldet nichts bei korrekten Daten');
+})();
+
+/* ============ de-AT-Formatierung (Komma, bis zu 2 Nachkommastellen) ============ */
 (function () {
   assertEq(fmtZahl(1), '1', 'glatte 1 ohne „,0“');
   assertEq(fmtZahl(7), '7', 'glatte 7');
   assertEq(fmtZahl(0.5), '0,5', 'Komma statt Punkt');
   assertEq(fmtZahl(0.7), '0,7', '0,7');
-  assertEq(fmtZahl(1.25), '1,3', 'auf 1 Nachkommastelle gerundet');
-  assertEq(fmtZahl(2.04), '2', '2,04 → glatt 2');
+  assertEq(fmtZahl(0.35), '0,35', 'zwei Nachkommastellen wo nötig (Kombi × Faktor)');
+  assertEq(fmtZahl(1.25), '1,25', '1,25 bleibt exakt');
+  assertEq(fmtZahl(0.349), '0,35', 'auf 2 Nachkommastellen gerundet');
+  assertEq(fmtZahl(2.004), '2', '2,004 → glatt 2');
   assertEq(fmtZahl(null), '–', 'null → Strich');
+})();
+
+/* ============ katWerte (Tour-Kategorien → Werte, auch für Gäste) ============ */
+(function () {
+  assertEq(katWerte(['KTW']), [{ kat: 'KTW', wert: 1 }], 'reiner Code → 1,0');
+  assertEq(katWerte(['ABD', 'ZBV']), [{ kat: 'ABD', wert: 0.5 }, { kat: 'ZBV', wert: 0.5 }], 'Kombi → je 0,5');
+  assertEq(katWerte([]), [], 'leer bleibt leer');
+})();
+
+/* ============ Ausgrauen: KTW nie (auch Praktikant nicht) ============ */
+(function () {
+  const cats = defaultCategories();
+  const ktw = cats.find(c => c.id === 'KTW'), rtw = cats.find(c => c.id === 'RTW'), abd = cats.find(c => c.id === 'ABD');
+  const prkt = P('p1', 'keine', 'Praktikant'), offen = P('p2', 'keine', null), b3 = P('p3', 'B3', 'NFS');
+  assert(!istAusgegraut(prkt, ktw), 'Praktikant: KTW nicht ausgegraut (fährt als 2. Trspf. mit)');
+  assert(!istAusgegraut(offen, ktw), 'Stufe fehlt: KTW nicht ausgegraut');
+  assert(!istAusgegraut(b3, ktw), 'Berechtigter: KTW nicht ausgegraut');
+  assert(istAusgegraut(prkt, rtw), 'RTW bleibt für Nicht-Berechtigte grau');
+  assert(istAusgegraut(prkt, abd), 'ÄBD bleibt für Nicht-Berechtigte grau');
+  assert(!istAusgegraut(b3, rtw), 'RTW-Berechtigte nicht grau');
+})();
+
+/* ============ DF-Statistik (Personenauswahl, 100-%-Bilanz, Grau-Zeile) ============ */
+(function () {
+  const data = defaultData();
+  data.people.push(
+    P('mit', 'B3', 'RS2', { df: true }),       // Häkchen + Dienste
+    P('nur_haken', 'B2', 'RS1', { df: true }), // Häkchen ohne Dienste
+    P('ohne_haken', 'B3', 'NFS'),              // Dienste ohne Häkchen → grau
+    P('nix', 'A', 'RS1')                       // weder noch → fehlt
+  );
+  data.evenings.push({ date: '2026-01-05', assignments: { mit: A('DF'), ohne_haken: A('DF'), nix: A('KTW') } });
+  data.evenings.push({ date: '2026-01-12', assignments: { mit: A('DF'), nix: A('KTW') } });
+  const rows = dfStatistik(data, computeStats(data));
+  assertEq(rows.map(r => r.p.id), ['mit', 'ohne_haken', 'nur_haken'], 'Auswahl: Häkchen oder DF > 0, sortiert nach DF-Diensten');
+  assert(approx(rows[0].anteil, 2 / 3) && approx(rows[1].anteil, 1 / 3), 'Bilanz untereinander');
+  assert(approx(rows.reduce((x, r) => x + (r.anteil || 0), 0), 1), 'Anteile summieren sich auf 100 %');
+  assert(rows[1].ohneBerechtigung === true, 'DF-Dienste ohne Häkchen werden markiert');
+  assert(rows[2].ohneBerechtigung === false && rows[2].dfDienste === 0, 'Häkchen ohne Dienste: normale Zeile mit 0');
+  assert(approx(rows[0].dienste, 2), 'DF zählt unverändert in die Gesamt-Dienste');
+})();
+
+/* ============ Gäste: Aggregation inkl. „?“-Spalte ============ */
+(function () {
+  const data = defaultData();
+  data.evenings.push({ date: '2026-01-05', gaeste: [
+    { name: 'Gerda Gast', kats: [{ kat: 'KTW', wert: 1 }], rolle: 'p2' },
+    { name: 'Hans Helfer', kats: null }                                    // Alt-Einsatz, Kategorie unbekannt
+  ], assignments: {} });
+  data.evenings.push({ date: '2026-01-12', gaeste: [
+    { name: 'gerda gast', kats: [{ kat: 'ABD', wert: 0.5 }, { kat: 'ZBV', wert: 0.5 }], rolle: 'fahrer' },
+    'Hans Helfer'                                                          // toleranter Alt-String
+  ], assignments: {} });
+  const rows = gastTabelle(data);
+  assertEq(rows.length, 2, 'zwei Gäste aggregiert (case-insensitiv)');
+  const gerda = rows.find(r => normKey(r.name) === 'gerda gast');
+  assertEq(gerda.einsaetze, 2, 'Gerda: 2 Einsätze');
+  assert(approx(gerda.counts['KTW'], 1) && approx(gerda.counts['ABD'], 0.5) && approx(gerda.counts['ZBV'], 0.5), 'Kombi zählt auch bei Gästen je 0,5');
+  assertEq(gerda.unbekannt, 0, 'Gerda: keine unbekannten');
+  const hans = rows.find(r => normKey(r.name) === 'hans helfer');
+  assertEq(hans.einsaetze, 2, 'Hans: 2 Einsätze');
+  assertEq(hans.unbekannt, 2, 'Hans: beide in der „?“-Spalte (kats null bzw. Alt-String)');
+  /* Standard-Sortierung: Einsätze absteigend, dann Name */
+  assertEq(rows.map(r => r.einsaetze), [2, 2], 'Sortierung nach Einsätzen');
+})();
+
+/* ============ Quittieren (offene vs. quittierte Befunde) ============ */
+(function () {
+  const data = defaultData();
+  data.people.push(P('pa', 'B3', null, { df: true }), P('pb', 'B2', 'RS1', { df: true }));
+  data.evenings.push({ date: '2026-01-12', assignments: { pa: A('DF'), pb: A('DF') } });
+  data.evenings.push({ date: '2026-01-12', assignments: {} }); // Fehler: doppeltes Datum
+  const findings = checkData(data);
+  /* stabile Schlüssel */
+  assert(findings.some(f => f.key === 'doppel-df:2026-01-12'), 'Schlüssel doppel-df:<datum>');
+  assert(findings.some(f => f.key === 'stufe-fehlt:pa'), 'Schlüssel stufe-fehlt:<personId>');
+  assert(findings.every(f => typeof f.key === 'string' && f.key.length), 'jeder Befund hat einen Schlüssel');
+
+  const o0 = offeneBefunde(findings, []);
+  assertEq(o0.quittiert.length, 0, 'ohne Quittierungen ist alles offen');
+
+  const quitt = [{ key: 'doppel-df:2026-01-12', datum: '2026-06-11' }, { key: 'stufe-fehlt:pa', datum: '2026-06-11' }];
+  const o1 = offeneBefunde(findings, quitt);
+  assertEq(o1.quittiert.map(f => f.key).sort(), ['doppel-df:2026-01-12', 'stufe-fehlt:pa'], 'quittierte Hinweise ausgeblendet');
+  assert(o1.offen.some(f => f.code === 'datum-doppelt'), 'Fehler sind nie quittierbar');
+  assert(!o1.offen.some(f => f.key === 'doppel-df:2026-01-12'), 'quittierter Hinweis nicht mehr offen');
+  /* Badge-Zählung = offene; Zurücksetzen = alles wieder offen */
+  assertEq(offeneBefunde(findings, []).offen.length, findings.length, 'Zurücksetzen: alle wieder offen');
+  /* unbekannte Schlüssel in der Datei stören nicht */
+  assertEq(offeneBefunde(findings, [{ key: 'gibt-es-nicht', datum: '2026-01-01' }]).offen.length, findings.length, 'verwaiste Quittierung ist harmlos');
 })();
 
 (function () {
@@ -465,7 +610,6 @@ function P(id, fahrlizenz, stufe, extra) {
   assertEq(g.einsaetze, 3, '3 Gast-Einsätze');
   assertEq(g.verschiedene, 2, '2 verschiedene Gäste');
   assert(approx(g.anteil, 3 / 7), 'Anteil 3 von 7 Crew-Plätzen');
-  assertEq(g.top.map(t => t.name + ':' + t.count), ['Gerda Gast:2', 'Hans Helfer:1'], 'Top-Gäste sortiert');
   /* Gäste zählen nicht in die Dienst-Statistik */
   const stats = computeStats(data);
   assertEq(stats.catTotals['RTW'], 1, 'Gäste erhöhen keine Kategorie-Summen');
@@ -508,7 +652,7 @@ function P(id, fahrlizenz, stufe, extra) {
     ]
   };
   const res = importFromExcelSheets(sheets, defaultCategories());
-  assertEq(res.data.version, 3, 'Import liefert das aktuelle Schema (v3)');
+  assertEq(res.data.version, 4, 'Import liefert das aktuelle Schema (v4)');
   const names = res.data.people.map(p => p.nachname);
   assert(!names.includes('ZZ'), 'ZZ-Müllzeilen verworfen');
   assert(names.includes('Weggang'), 'Austritt-Name als Person übernommen');
@@ -652,22 +796,20 @@ function P(id, fahrlizenz, stufe, extra) {
   d1.evenings[0].assignments = { pa: A('DF') };
   assertEq(code(checkData(d1), 'df-mehrfach').length, 0, 'einzelner DF: kein Hinweis');
 
-  /* Hinweis: ÄBD/ZBV-Kombi */
+  /* ÄBD/ZBV-Kombi ist seit der 0,5-Regel kein Hinweis mehr (entfällt ersatzlos) */
   const d2 = defaultData();
   d2.people.push(P('pa', 'B2', 'RS1'));
   d2.evenings.push({ date: '2026-01-05', assignments: { pa: A('ABD', 'ZBV') } });
   const f2 = checkData(d2);
-  assertEq(code(f2, 'abd-zbv').length, 1, 'ÄBD/ZBV-Kombi wird gemeldet');
-  assert(code(f2, 'abd-zbv')[0].text.includes('100 %'), 'Erklärung zu Prozent-Summen > 100 %');
-  d2.evenings[0].assignments = { pa: A('ABD') };
-  assertEq(code(checkData(d2), 'abd-zbv').length, 0, 'nur ÄBD: kein Hinweis');
+  assertEq(f2.filter(f => f.code === 'abd-zbv').length, 0, 'kein ÄBD/ZBV-Hinweis mehr');
+  assertEq(f2.length, 0, 'Kombi-Abend erzeugt gar keinen Befund mehr (Summen können nicht mehr über 100 % gehen)');
 
-  /* Hinweis: Stufe fehlt (gesammelt, mit Anzahl) */
+  /* Hinweis: Stufe fehlt — je Person, quittierbar */
   const d3 = defaultData();
   d3.people.push(P('pa', 'B3', null), P('pb', 'B2', null), P('px', 'B2', null, { status: 'ausgetreten' }));
   const f3 = code(checkData(d3), 'stufe-fehlt');
-  assertEq(f3.length, 1, 'ein gesammelter Stufe-fehlt-Hinweis');
-  assert(f3[0].text.startsWith('2 Personen'), 'Anzahl genannt (Ausgetretene zählen nicht)');
+  assertEq(f3.length, 2, 'je Person ein Stufe-fehlt-Hinweis (Ausgetretene zählen nicht)');
+  assertEq(f3.map(f => f.key).sort(), ['stufe-fehlt:pa', 'stufe-fehlt:pb'], 'stabile Schlüssel je Person');
   d3.people[0].stufe = 'RS2'; d3.people[1].stufe = 'NFS';
   assertEq(code(checkData(d3), 'stufe-fehlt').length, 0, 'alle gepflegt: kein Hinweis');
 
@@ -699,11 +841,14 @@ function P(id, fahrlizenz, stufe, extra) {
   assertEq(code(f6, 'anwesenheit-ueber-100').length, 1, 'Anwesenheit über 100 % ist Fehler');
   assertEq(code(f6, 'anwesenheitswert').length, 1, '… zusätzlich ist der Abend-Wert außerhalb [0, 1]');
 
-  /* Fehler: Kategorie-Anzahl > Dienste (korrupte Datei mit doppeltem Eintrag) */
+  /* Invariante: auch ein (korrupter) Doppel-Eintrag derselben Kategorie kann die
+     Summe nicht mehr über die Dienste heben (je Eintrag f/n) */
   const d7 = defaultData();
   d7.people.push(P('pa', 'B3', null));
   d7.evenings.push({ date: '2026-01-05', assignments: { pa: [{ kat: 'KTW', rolle: null }, { kat: 'KTW', rolle: null }] } });
-  assertEq(code(checkData(d7), 'kat-ueber-dienste').length, 1, 'doppelter Kategorie-Eintrag wird als Fehler gemeldet');
+  const s7 = computeStats(d7).perPerson['pa'];
+  assert(approx(s7.catCounts['KTW'], 1) && approx(s7.dienste, 1), 'Doppel-Eintrag: Summe bleibt = Dienste');
+  assertEq(code(checkData(d7), 'kategorien-summe').length, 0, 'Invariante hält auch hier');
 
   /* Fehler: doppelte Abend-Daten */
   const d8 = defaultData();

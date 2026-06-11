@@ -39,8 +39,12 @@ geöffnet) oder über GitHub Pages.
    (A4 quer) — über den Browser-Druck auch als PDF speicherbar.
 6. Die **Datenprüfung** (unter Datei & Excel, Badge in der Seitenleiste)
    macht Auffälligkeiten sichtbar — z. B. zwei DF an einem Abend (geteilter
-   Dienst) oder Werte außerhalb des gültigen Bereichs. Sie korrigiert nie
-   automatisch.
+   Dienst) oder Werte außerhalb des gültigen Bereichs. Gelbe Hinweise sind
+   quittierbar (das Badge zählt nur offene), rote Fehler nicht. Sie
+   korrigiert nie automatisch.
+7. Die Ansicht **Gäste** zeigt die Gast-Quote und je Gast die Einsätze nach
+   Kategorie („?“ = Alt-Einsätze, deren Kategorie vor Version 4 nicht
+   erfasst wurde) — reine Statistik, etwa um zu sehen, wer oft aushilft.
 
 Zum Ausprobieren ohne echte Daten: `Statistik.beispiel.json` laden
 (Fantasienamen).
@@ -49,12 +53,14 @@ Zum Ausprobieren ohne echte Daten: `Statistik.beispiel.json` laden
 
 * Quelle der Wahrheit ist genau eine JSON-Datei (z. B. `Statistik.json` in
   einem geteilten OneDrive-Ordner). Kein localStorage, keine Datenbank.
-* Aktuelles Datei-Schema: **Version 3** (Fahrlizenz `keine/A/B2/B3` und Stufe
-  `Praktikant/RS1/RS2/NFS`; Zuordnungen mit Rolle; Gäste je Abend; die
-  partials-Map ist eine Teil-Dienst-Faktor-Map, f ∈ (0, 1] wirkt einheitlich
-  auf Anwesenheit, Dienste und Kategorien). v1-/v2-Dateien werden beim Laden
-  automatisch und verlustfrei migriert — bei alten A/B2/B3-Qualifikationen
-  fehlt danach die Stufe und wird im UI als „Stufe nachpflegen“ markiert.
+* Aktuelles Datei-Schema: **Version 4** (Fahrlizenz `keine/A/B2/B3` und Stufe
+  `Praktikant/RS1/RS2/NFS`; Zuordnungen mit Rolle; Teil-Dienst-Faktor f ∈
+  (0, 1] wirkt einheitlich auf Anwesenheit, Dienste und Kategorien; Gäste je
+  Abend als Objekte mit Kategorien und Rolle; `quittierungen` für quittierte
+  Datenprüfungs-Hinweise). Ältere Dateien (v1–v3) werden beim Laden
+  automatisch und verlustfrei migriert; redundante 0-Werte werden dabei
+  beziffert bereinigt. Zählregel: ÄBD/ZBV-Kombi zählt je 0,5 — die Summe der
+  Kategorie-Werte einer Person ist immer gleich ihren Diensten.
 * Vor jedem Speichern prüft die App, ob die Datei zwischenzeitlich geändert
   wurde (z. B. von einem anderen Kommandomitglied), und warnt dann.
 * OneDrive kann bei gleichzeitigem Speichern Konfliktkopien anlegen — größere
