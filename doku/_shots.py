@@ -37,6 +37,16 @@ window.addEventListener('load', function () {
 """
 
 SHOTS = {
+    # Schnellstart Schritt 3: Menüpunkt „Datei & Excel“ markiert (Seitenleiste)
+    "start-1-menue": (
+        "go('dashboard');"
+        "var b=document.querySelector('#mainNav button[data-view=datei]');"
+        "b.style.outline='3px solid #E2001A'; b.style.outlineOffset='-2px';", 430, 720),
+    # Schnellstart Schritt 4: „Statistik-Datei öffnen …“ markiert (verbundener Zustand)
+    "start-2-oeffnen": (
+        "fileMode='fsa'; fileHandle={name:'Statistik.json'}; updateFileStatus(); go('datei');"
+        "var b=document.querySelector('#btnOpenFsa');"
+        "b.style.outline='3px solid #E2001A'; b.style.outlineOffset='3px'; b.style.borderRadius='8px';", 1180, 620),
     # Inbetriebnahme: Startbildschirm „Datei & Excel“ mit FSA-Buttons
     "datei-start": ("go('datei');", 1180, 760),
     # Inbetriebnahme: verbundener Zustand (grüne Statuszeile)

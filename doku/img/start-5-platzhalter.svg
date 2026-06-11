@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 820 300" font-family="-apple-system, Segoe UI, Arial, sans-serif">
+  <rect x="6" y="6" width="808" height="288" rx="12" fill="#FFF8EB" stroke="#C77700" stroke-width="2" stroke-dasharray="10 7"/>
+  <text x="410" y="74" text-anchor="middle" font-size="40">✂️ 🖼️</text>
+  <text x="410" y="128" text-anchor="middle" fill="#9F0012" font-size="20" font-weight="700">Platz für deinen Screenshot</text>
+  <text x="410" y="170" text-anchor="middle" fill="#202020" font-size="15">Hier den geteilten OneDrive-Ordner einkleben</text>
+  <text x="410" y="196" text-anchor="middle" fill="#202020" font-size="15">(RKT-020-Zug11 › Dokumente › General)</text>
+  <text x="410" y="232" text-anchor="middle" fill="#5a5a5a" font-size="14">→ die Datei <tspan font-weight="700">Statistik.json</tspan> anklicken und auf „Öffnen“</text>
+  <text x="410" y="262" text-anchor="middle" fill="#9b7a2e" font-size="12.5">(im fertigen Ausdruck durch das eigene Bild ersetzen)</text>
+</svg>
